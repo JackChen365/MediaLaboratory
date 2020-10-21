@@ -1,0 +1,4 @@
+include ':ffmpeg-video'
+include ':ffmpeg-audio'
+include ':app'
+rootProject.name = "MediaLaboratory"
