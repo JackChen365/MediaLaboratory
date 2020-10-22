@@ -147,6 +147,7 @@ void AudioPlayer::pause() {
 void AudioPlayer::seekTo(int64_t timeStamp) {
     isBeginSeeking = true;
     seekTime = (timeStamp/1000)*(timeBase->den/timeBase->num);
+    AUDIO_LOG_I("seekTo:%lld",timeStamp);
 }
 
 void AudioPlayer::stop() {
@@ -160,6 +161,28 @@ int64_t AudioPlayer::getCurrentPlayTime() {
 
 int64_t AudioPlayer::getDuration() {
     return duration*av_q2d(*timeBase)*1000;
+}
+
+void AudioPlayer::fastForward() {
+    isBeginSeeking = true;
+    //Total duration which is millisecond.
+    int64_t duration = getDuration();
+    //Current millisecond;
+    int64_t currentPlayTime = getCurrentPlayTime();
+    int64_t newTimeStamp= currentPlayTime + DEFAULT_SEEK_SHORT_TIME < duration?
+            currentPlayTime + DEFAULT_SEEK_SHORT_TIME : duration;
+    seekTime = (newTimeStamp/1000)*(timeBase->den/timeBase->num);
+    AUDIO_LOG_I("fastForward:%lld currentPlayTime:%lld duration:%lld",newTimeStamp,currentPlayTime,duration);
+}
+
+void AudioPlayer::backward() {
+    isBeginSeeking = true;
+    //Current millisecond;
+    int64_t currentPlayTime = getCurrentPlayTime();
+    int64_t newTimeStamp = currentPlayTime - DEFAULT_SEEK_SHORT_TIME > 0?
+               currentPlayTime - DEFAULT_SEEK_SHORT_TIME : 0;
+    seekTime = (newTimeStamp/1000)*(timeBase->den/timeBase->num);
+    AUDIO_LOG_I("backward:%lld",newTimeStamp);
 }
 
 void AudioPlayer::release() {

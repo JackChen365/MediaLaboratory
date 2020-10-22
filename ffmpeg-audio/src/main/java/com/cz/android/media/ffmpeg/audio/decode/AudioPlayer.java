@@ -1,4 +1,4 @@
-package com.cz.android.media.ffmpeg.audio;
+package com.cz.android.media.ffmpeg.audio.decode;
 
 /**
  * Created by jack in 2020/10/17
@@ -6,7 +6,7 @@ package com.cz.android.media.ffmpeg.audio;
  * This is a jni bright work with audio-lib.
  * The class load all the FFMPEG library and the Audio-lib library.
  * All the native methods are private scope. You could be able to call public method I support.
- * @see #loadFile(String) load the audio file and prepare all the player resources.
+ * @see #prepare(String) load the audio file and prepare all the player resources.
  * @see #start() start play the audio
  * @see #pause() Temporarily pause the player.
  * @see #resume()  resume from the pause state and continue to play.
@@ -29,12 +29,11 @@ public class AudioPlayer {
     private static final int INVALID_REF=0;
 
     /**
-     * load the audio file and prepare all the player resources in native.
+     * Prepare all the player resources in native.
      * Return the player pointer from native code. 0 represents success others means failed.
-     * @param filePath
      * @return
      */
-    private native long nLoadFile(String filePath);
+    private native long nPrepare(String filePath);
 
     /**
      * Start play the audio.
@@ -59,12 +58,13 @@ public class AudioPlayer {
      * @param ref
      */
     private native void nStop(long ref);
-
     private native long nGetDuration(long ref);
-
     private native long nGetCurrentPlayTime(long ref);
-
     private native void nSeekTo(long ref,long timeStamp);
+    private native void nFastForward(long ref);
+    private native void nBackward(long ref);
+    private native void nRelease(long ref);
+
 
     /**
      * The player object pointer from Native code.
@@ -76,8 +76,12 @@ public class AudioPlayer {
      * @param filePath
      * @return
      */
-    public boolean loadFile(String filePath){
-        objectRef=nLoadFile(filePath);
+    public boolean prepare(String filePath){
+        objectRef=nPrepare(filePath);
+        return INVALID_REF!=objectRef;
+    }
+
+    public boolean isValid(){
         return INVALID_REF!=objectRef;
     }
 
@@ -113,19 +117,55 @@ public class AudioPlayer {
         nStop(objectRef);
     }
 
+    /**
+     * Return the total duration of the playback.
+     * @return
+     */
     public long getDuration(){
         assetObject();
         return nGetDuration(objectRef);
     }
 
+    /**
+     * Return the current play time.
+     * @return
+     */
     public long getCurrentPlayTime(){
         assetObject();
         return nGetCurrentPlayTime(objectRef);
     }
 
+    /**
+     * Seek to a specific position.
+     * @param timeStamp
+     */
     public void seekTo(long timeStamp){
         assetObject();
         nSeekTo(objectRef,timeStamp);
+    }
+
+    /**
+     * Move to a short distance like 5s.
+     */
+    public void fastForward(){
+        assetObject();
+        nFastForward(objectRef);
+    }
+
+    /**
+     * Move back to a short distance like 5s.
+     */
+    public void backward(){
+        assetObject();
+        nBackward(objectRef);
+    }
+
+    /**
+     * Release all the resources.
+     */
+    public void release(){
+        assetObject();
+        nRelease(objectRef);
     }
 
     private void assetObject(){

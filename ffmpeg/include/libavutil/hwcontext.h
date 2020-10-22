@@ -277,7 +277,7 @@ int av_hwdevice_ctx_init(AVBufferRef *ref);
 /**
  * Open a device of the specified type and create an AVHWDeviceContext for it.
  *
- * This is a convenience function intended to cover the simple cases. Callers
+ * This is a convenience function intended to icon_cover the simple cases. Callers
  * who need to fine-tune device creation/management should open the device
  * manually and then wrap it in an AVHWDeviceContext using
  * av_hwdevice_ctx_alloc()/av_hwdevice_ctx_init().

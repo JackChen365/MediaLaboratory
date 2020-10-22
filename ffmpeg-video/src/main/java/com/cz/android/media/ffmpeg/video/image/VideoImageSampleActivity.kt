@@ -1,17 +1,17 @@
-package com.cz.android.ffmpeg.sample.image
+package com.cz.android.media.ffmpeg.video.image
 
 import android.os.Bundle
 import android.widget.SeekBar
 import androidx.appcompat.app.AppCompatActivity
-import com.cz.android.ffmpeg.sample.R
+import com.cz.android.media.ffmpeg.video.R
+import com.cz.android.media.ffmpeg.video.utils.Util
 import kotlinx.android.synthetic.main.activity_video_image_sample.*
-import java.io.File
 
 class VideoImageSampleActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_video_image_sample)
-        val file = getTempImageFile("sample3.mp4")
+        val file = Util.copyTempFileAsset(this,"sample3.mp4")
         videoView.loadImage(file)
         videoView.decodeFrame(0)
         seekBar.max= videoView.frameCount.toInt()
@@ -33,14 +33,5 @@ class VideoImageSampleActivity : AppCompatActivity() {
             videoView.stopAnimation()
         }
 
-    }
-
-    private fun getTempImageFile(assetFileName: String): File {
-        val inputStream = assets.open(assetFileName)
-        val readBytes = inputStream.readBytes()
-        val file = File.createTempFile("tmp", ".mp4")
-        file.writeBytes(readBytes)
-        file.deleteOnExit()
-        return file
     }
 }

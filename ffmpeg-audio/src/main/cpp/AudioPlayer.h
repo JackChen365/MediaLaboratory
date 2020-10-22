@@ -24,6 +24,7 @@ extern "C" {
 #define  AUDIO_LOG_I(...)  __android_log_print(ANDROID_LOG_DEBUG, AUDIO_TAG, __VA_ARGS__)
 #define  AUDIO_LOG_E(...)  __android_log_print(ANDROID_LOG_ERROR, AUDIO_TAG, __VA_ARGS__)
 
+#define DEFAULT_SEEK_SHORT_TIME 5000
 
 class AudioPlayerEngine;
 
@@ -46,8 +47,6 @@ private:
     int64_t seekTime=0;
 
     std::atomic_bool isBeginSeeking=false;
-
-    void release();
 public:
     AudioPlayer();
     ~AudioPlayer();
@@ -64,6 +63,16 @@ public:
      * @param bufferSize
      */
     void readFrame(void **pcmBuffer,size_t *bufferSize);
+    /**
+     * Prepare all the resources, and ready to play.
+     */
+    void prepare();
+    /**
+     * Initial the data source.
+     * @param dataSource
+     * @return
+     */
+    void setDataSource(const char* dataSource);
     /**
      * Start play the audio
      * @param filePath
@@ -86,12 +95,26 @@ public:
      * @return
      */
     void stop();
-
     /**
      * Seek to a specific time stamp
      * @param timeStamp
      */
     void seekTo(int64_t timeStamp);
+
+    /**
+     * Move for a short distance.
+     */
+    void fastForward();
+
+    /**
+     * Move back for a short distance.
+     */
+    void backward();
+
+    /**
+     * Release all the resources.
+     */
+    void release();
     /**
      * Return the current play time.
      * @return

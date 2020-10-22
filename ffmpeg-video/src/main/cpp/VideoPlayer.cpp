@@ -422,5 +422,5 @@ void VideoPlayerSurfaceEngine::createEngine(JNIEnv *env,jobject surface) {
 }
 
 void VideoPlayerSurfaceEngine::draw() {
-    videoPlayer->readVideoFrame()
+//    videoPlayer->readVideoFrame()
 }

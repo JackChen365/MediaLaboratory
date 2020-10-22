@@ -62,7 +62,7 @@ public:
 
 extern "C"
 JNIEXPORT jlong JNICALL
-Java_com_cz_android_ffmpeg_sample_decode_NativeVideoDecoder_nLoadFile(JNIEnv *env, jobject thiz, jstring jFilePath) {
+Java_com_cz_android_media_ffmpeg_video_test_NativeVideoDecoder_nLoadFile(JNIEnv *env, jobject thiz, jstring jFilePath) {
     const char* filePath=env->GetStringUTFChars(jFilePath,0);
     AVFormatContext *pFormatContext = avformat_alloc_context();
     if (!pFormatContext) {
@@ -137,28 +137,28 @@ Java_com_cz_android_ffmpeg_sample_decode_NativeVideoDecoder_nLoadFile(JNIEnv *en
 
 extern "C"
 JNIEXPORT jint JNICALL
-Java_com_cz_android_ffmpeg_sample_decode_NativeVideoDecoder_nGetWidth(JNIEnv *env, jobject thiz, jlong ref) {
+Java_com_cz_android_media_ffmpeg_video_test_NativeVideoDecoder_nGetWidth(JNIEnv *env, jobject thiz, jlong ref) {
     VideoReaderState *videoReaderState=(VideoReaderState *)ref;
     return videoReaderState->width;
 }
 
 extern "C"
 JNIEXPORT jint JNICALL
-Java_com_cz_android_ffmpeg_sample_decode_NativeVideoDecoder_nGetHeight(JNIEnv *env, jobject thiz, jlong ref) {
+Java_com_cz_android_media_ffmpeg_video_test_NativeVideoDecoder_nGetHeight(JNIEnv *env, jobject thiz, jlong ref) {
     VideoReaderState *videoReaderState=(VideoReaderState *)ref;
     return videoReaderState->height;
 }
 
 extern "C"
 JNIEXPORT jlong JNICALL
-Java_com_cz_android_ffmpeg_sample_decode_NativeVideoDecoder_nGetDuration(JNIEnv *env, jobject thiz, jlong ref) {
+Java_com_cz_android_media_ffmpeg_video_test_NativeVideoDecoder_nGetDuration(JNIEnv *env, jobject thiz, jlong ref) {
     VideoReaderState *videoReaderState=(VideoReaderState *)ref;
     return videoReaderState->duration;
 }
 
 extern "C"
 JNIEXPORT jint JNICALL
-Java_com_cz_android_ffmpeg_sample_decode_NativeVideoDecoder_nGetFrameCount(JNIEnv *env, jobject thiz, jlong ref) {
+Java_com_cz_android_media_ffmpeg_video_test_NativeVideoDecoder_nGetFrameCount(JNIEnv *env, jobject thiz, jlong ref) {
     VideoReaderState *videoReaderState=(VideoReaderState *)ref;
     double av_d2q=av_q2d(*videoReaderState->timeBase);
     float totalTime=(float)videoReaderState->duration*av_d2q;
@@ -169,13 +169,13 @@ private long decodeFrameInternal(JNIEnv *env, jlong ref,jobject jbitmap);
 
 extern "C"
 JNIEXPORT jlong JNICALL
-Java_com_cz_android_ffmpeg_sample_decode_NativeVideoDecoder_nDecodeFrame(JNIEnv *env, jobject thiz, jlong ref, jobject jbitmap){
+Java_com_cz_android_media_ffmpeg_video_test_NativeVideoDecoder_nDecodeFrame(JNIEnv *env, jobject thiz, jlong ref, jobject jbitmap){
     return decodeFrameInternal(env,ref,jbitmap);
 }
 
 extern "C"
 JNIEXPORT jlong JNICALL
-Java_com_cz_android_ffmpeg_sample_decode_NativeVideoDecoder_nFillFrame(JNIEnv *env, jobject thiz, jlong ref, jobject jbitmap, jint index) {
+Java_com_cz_android_media_ffmpeg_video_test_NativeVideoDecoder_nFillFrame(JNIEnv *env, jobject thiz, jlong ref, jobject jbitmap, jint index) {
     VideoReaderState *pVideoReaderState=(VideoReaderState *)ref;
     // Unpack members of state
     AVFormatContext* pFormatContext=pVideoReaderState->avFormatContext;
@@ -277,7 +277,7 @@ private long decodeFrameInternal(JNIEnv *env, jlong ref,jobject jbitmap){
 
 extern "C"
 JNIEXPORT void JNICALL
-Java_com_cz_android_ffmpeg_sample_decode_NativeVideoDecoder_nRecycle(JNIEnv *env, jobject thiz, jlong ref) {
+Java_com_cz_android_media_ffmpeg_video_test_NativeVideoDecoder_nRecycle(JNIEnv *env, jobject thiz, jlong ref) {
     VideoReaderState *videoReaderState=(VideoReaderState *)ref;
     delete videoReaderState;
 }

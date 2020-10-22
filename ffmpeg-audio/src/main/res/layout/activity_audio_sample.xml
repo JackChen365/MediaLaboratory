@@ -1,45 +1,129 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".MainActivity"
-    tools:showIn="@layout/activity_main">
+    android:orientation="vertical"
+    android:gravity="center_horizontal"
+    android:background="#25272d">
 
-    <SeekBar
-        android:id="@+id/seekBar"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="24dp" />
-
-    <LinearLayout
+    <TextView
+        android:id="@+id/textViewSong"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_margin="16dp"
-        android:layout_gravity="right|bottom"
-        android:orientation="horizontal">
-        <Button
-            android:id="@+id/playButton"
-            android:text="play"
-            android:textAllCaps="false"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content" />
+        android:layout_centerHorizontal="true"
+        android:textColor="@android:color/white"
+        android:textSize="22sp"
+        android:text="Rock With You"
+        android:layout_marginTop="50dp"/>
 
-        <Button
+
+    <TextView
+        android:id="@+id/textViewSinger"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_centerHorizontal="true"
+        android:textColor="@android:color/white"
+        android:textSize="15sp"
+        android:text="Michael Jackson"
+        android:layout_marginTop="10dp"
+        android:layout_below="@+id/textViewSong"/>
+
+
+    <com.cz.android.media.ffmpeg.audio.view.MusicPlayerView
+        android:id="@+id/musicPlayerView"
+        android:layout_width="240dp"
+        android:layout_height="240dp"
+        android:layout_marginTop="80dp"
+        app:textSize="14sp"
+        app:textColor="@android:color/white"
+        app:buttonColor= "?colorAccent"
+        app:progressLoadedColor="?colorAccent"/>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_gravity="bottom"
+        android:layout_marginTop="36dp"
+        android:paddingTop="12dp"
+        android:paddingBottom="12dp">
+
+        <TextView
+            android:id="@+id/progressText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:padding="12dp"
+            android:textSize="16sp"
+            android:text="00:00"
+            android:textColor="@android:color/white"/>
+
+        <SeekBar
+            android:id="@+id/seekBar"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"/>
+
+        <TextView
+            android:id="@+id/durationText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:padding="12dp"
+            android:textSize="16sp"
+            android:text="00:00"
+            android:textColor="@android:color/white"
+            />
+
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_horizontal">
+
+        <ImageView
+            android:id="@+id/backwardButton"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:padding="12dp"
+            android:layout_marginRight="48dp"
+            android:src="@mipmap/ic_skip_previous_white"
+            android:background="@drawable/player_button_selector"/>
+
+        <ImageView
+            android:id="@+id/playButton"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:padding="12dp"
+            android:src="@mipmap/ic_play_arrow_white"
+            android:background="@drawable/player_button_selector"/>
+
+
+        <ImageView
             android:id="@+id/pauseButton"
-            android:text="pause"
-            android:textAllCaps="false"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content" />
-        <Button
-            android:id="@+id/resumeButton"
-            android:text="resume"
-            android:textAllCaps="false"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content" />
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:padding="12dp"
+            android:visibility="gone"
+            android:src="@mipmap/ic_stop_white"
+            android:background="@drawable/player_button_selector"/>
+
+
+        <ImageView
+            android:id="@+id/fastForwardButton"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:padding="12dp"
+            android:layout_marginLeft="48dp"
+            android:src="@mipmap/ic_skip_next_white"
+            android:background="@drawable/player_button_selector"/>
+
 
     </LinearLayout>
 
 
-</FrameLayout>
+
+
+</LinearLayout>

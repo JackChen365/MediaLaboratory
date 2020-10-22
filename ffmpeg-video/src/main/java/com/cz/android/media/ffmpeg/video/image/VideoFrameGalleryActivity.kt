@@ -5,6 +5,7 @@ import android.widget.SeekBar
 import androidx.appcompat.app.AppCompatActivity
 import com.cz.android.media.ffmpeg.video.R
 import com.cz.android.media.ffmpeg.video.image.adapter.VideoFrameAdapter
+import com.cz.android.media.ffmpeg.video.utils.Util
 import kotlinx.android.synthetic.main.activity_video_frame_gallery.*
 import java.io.File
 
@@ -12,7 +13,7 @@ class VideoFrameGalleryActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_video_frame_gallery)
-        val tempImageFile = getTempImageFile("sample2.mp4")
+        val tempImageFile = Util.copyTempFileAsset(this,"sample2.mp4")
         val videoFrameAdapter = VideoFrameAdapter(this, tempImageFile.absolutePath)
         gallery.adapter = VideoFrameAdapter(this,tempImageFile.absolutePath)
         gallery.setPageTransformer { page, fraction ->
@@ -32,14 +33,5 @@ class VideoFrameGalleryActivity : AppCompatActivity() {
             override fun onStopTrackingTouch(seekBar: SeekBar) {
             }
         })
-    }
-
-    private fun getTempImageFile(assetFileName: String): File {
-        val inputStream = assets.open(assetFileName)
-        val readBytes = inputStream.readBytes()
-        val file = File.createTempFile("tmp", ".mp4")
-        file.writeBytes(readBytes)
-        file.deleteOnExit()
-        return file
     }
 }

@@ -11,7 +11,7 @@ public class NativeVideoDecoder {
         System.loadLibrary("avformat");
         System.loadLibrary("avfilter");
         System.loadLibrary("avdevice");
-        System.loadLibrary("video-lib1");
+        System.loadLibrary("video-test-lib");
     }
     private long decoderRef;
 

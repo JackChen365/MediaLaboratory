@@ -2,7 +2,7 @@
 // Created by Jack Chen on 10/17/2020.
 //
 #include <jni.h>
-#include "video/VideoPlayer.h"
+#include "VideoPlayer.h"
 
 extern "C"
 JNIEXPORT jlong JNICALL
@@ -66,7 +66,7 @@ Java_com_cz_android_ffmpeg_sample_video_VideoPlayer_nGetCurrentPlayTime(JNIEnv *
 
 extern "C"
 JNIEXPORT jlong JNICALL
-Java_com_cz_android_ffmpeg_sample_video_VideoPlayer_nGetDuration(JNIEnv *env, jobject thiz, jlong ref) {
+Java_com_cz_android_media_ffmpeg_video_image_adapter_VideoPlayer_nGetDuration(JNIEnv *env, jobject thiz, jlong ref) {
     VideoPlayer* player=(VideoPlayer*)ref;
     return player->getDuration();
 }

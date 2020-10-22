@@ -223,6 +223,8 @@ private:
     ANativeWindow* nativeWindow;
     ANativeWindow_Buffer windowBuffer;
 public:
+    VideoPlayerSurfaceEngine();
+    virtual ~VideoPlayerSurfaceEngine();
     void createEngine(JNIEnv *env,jobject surface);
     void draw();
 };

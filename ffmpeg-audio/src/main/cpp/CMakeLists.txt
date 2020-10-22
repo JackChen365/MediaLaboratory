@@ -9,29 +9,28 @@ cmake_minimum_required(VERSION 3.4.1)
 # or SHARED, and provides the relative paths to its source code.
 # You can define multiple libraries, and CMake builds them for you.
 # Gradle automatically packages shared libraries with your APK.
-set(FFMPEG_INCLUDE ../../../../ffmpeg/include/)
-set(FFMPEG_LIBS ../../../../ffmpeg/libs/)
-file(GLOB FFMPEG_HEADER ${FFMPEG_INCLUDE}/*)
+set(FFMPEG_DIR ${CMAKE_SOURCE_DIR}/../../../../ffmpeg/)
+file(GLOB FFMPEG_HEADER ${FFMPEG_DIR}/include/*)
 
-link_directories(FFMPEG_LIBS)
-include_directories(FFMPEG_HEADER)
+link_directories(${FFMPEG_DIR}/libs/)
+include_directories(${FFMPEG_DIR}/include/)
 
 add_library(audio-lib SHARED audio-lib.cpp AudioPlayer.h AudioPlayer.cpp)
 
 add_library(avcodec SHARED IMPORTED)
-set_target_properties(avcodec PROPERTIES IMPORTED_LOCATION "${FFMPEG_LIBS}/libavcodec.so")
+set_target_properties(avcodec PROPERTIES IMPORTED_LOCATION "${FFMPEG_DIR}/libs/libavcodec.so")
 add_library(avformat SHARED IMPORTED)
-set_target_properties(avformat PROPERTIES IMPORTED_LOCATION "${FFMPEG_LIBS}/libavformat.so")
+set_target_properties(avformat PROPERTIES IMPORTED_LOCATION "${FFMPEG_DIR}/libs/libavformat.so")
 add_library(avutil SHARED IMPORTED)
-set_target_properties(avutil PROPERTIES IMPORTED_LOCATION "${FFMPEG_LIBS}/libavutil.so")
+set_target_properties(avutil PROPERTIES IMPORTED_LOCATION "${FFMPEG_DIR}/libs/libavutil.so")
 add_library(swresample SHARED IMPORTED)
-set_target_properties(swresample PROPERTIES IMPORTED_LOCATION "${FFMPEG_LIBS}/libswresample.so")
+set_target_properties(swresample PROPERTIES IMPORTED_LOCATION "${FFMPEG_DIR}/libs/libswresample.so")
 add_library(swscale SHARED IMPORTED)
-set_target_properties(swscale PROPERTIES IMPORTED_LOCATION "${FFMPEG_LIBS}/libswscale.so")
+set_target_properties(swscale PROPERTIES IMPORTED_LOCATION "${FFMPEG_DIR}/libs/libswscale.so")
 add_library(avfilter SHARED IMPORTED)
-set_target_properties(avfilter PROPERTIES IMPORTED_LOCATION "${FFMPEG_LIBS}/libavfilter.so")
+set_target_properties(avfilter PROPERTIES IMPORTED_LOCATION "${FFMPEG_DIR}/libs/libavfilter.so")
 add_library(avdevice SHARED IMPORTED)
-set_target_properties(avdevice PROPERTIES IMPORTED_LOCATION "${FFMPEG_LIBS}/libavdevice.so")
+set_target_properties(avdevice PROPERTIES IMPORTED_LOCATION "${FFMPEG_DIR}/libs/libavdevice.so")
 
 # Searches for a specified prebuilt library and stores the path as a
 # variable. Because CMake includes system libraries in the search path by

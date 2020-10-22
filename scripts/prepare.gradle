@@ -1,0 +1,19 @@
+//Copy the media folder to the assets folder. In order to share all the media files.
+if(isAndroidProject(project)){
+    //Merge all the documents inside the project.
+    File mediaFile=new File(project.rootProject.projectDir,"media")
+    //We copy all the source file into the assets folder.
+    project.android.sourceSets.main.each { sourceSet->
+        def java = sourceSet.getJava()
+        Set<File> srcDirs = java.getSrcDirs()
+        def assets = sourceSet.getAssets()
+        assets.srcDir(mediaFile)
+        assets.srcDirs(srcDirs)
+        println(assets)
+    }
+}
+
+static boolean isAndroidProject(Project project) {
+    PluginContainer plugins = project.getPlugins();
+    return null!=plugins.findPlugin("com.android.application");
+}
