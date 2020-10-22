@@ -12,10 +12,10 @@ import android.view.Surface;
  * @see #start(Surface) start play the audio
  * @see #pause() Temporarily pause the player.
  * @see #resume()  resume from the pause state and continue to play.
- * @see #stop() Stop play and release all the player resources.
+ * @see #stop() Stop play and releaseResources all the player resources.
  *
  * I hold the native pointer which is the VideoPlayer in cpp.
- * Be careful if you call {@link #stop()} I will release all the resources.
+ * Be careful if you call {@link #stop()} I will releaseResources all the resources.
  */
 public class VideoPlayer {
     static {
@@ -57,7 +57,7 @@ public class VideoPlayer {
     private native void nResume(long ref);
 
     /**
-     * Stop the player and release all the player resources.
+     * Stop the player and releaseResources all the player resources.
      * @param ref
      */
     private native void nStop(long ref);
@@ -108,7 +108,7 @@ public class VideoPlayer {
     }
 
     /**
-     * Stop the player and release all the player resources.
+     * Stop the player and releaseResources all the player resources.
      */
     public void stop(){
         assetObject();

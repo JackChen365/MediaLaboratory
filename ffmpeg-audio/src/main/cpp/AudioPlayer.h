@@ -91,7 +91,7 @@ public:
      */
     void resume();
     /**
-     * Stop play and release the resources.
+     * Stop play and releaseResources the resources.
      * @return
      */
     void stop();
@@ -109,7 +109,7 @@ public:
     /**
      * Move back for a short distance.
      */
-    void backward();
+    void rewind();
 
     /**
      * Release all the resources.
@@ -199,7 +199,7 @@ public:
      */
     void resume();
     /**
-     * Stop the player and release all the resources.
+     * Stop the player and releaseResources all the resources.
      */
     void stop();
 };

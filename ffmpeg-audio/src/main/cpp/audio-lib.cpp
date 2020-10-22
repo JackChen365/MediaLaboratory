@@ -81,7 +81,7 @@ extern "C"
 JNIEXPORT void JNICALL
 Java_com_cz_android_media_ffmpeg_audio_decode_AudioPlayer_nBackward(JNIEnv *env, jobject thiz,jlong ref) {
     AudioPlayer* player=(AudioPlayer*)ref;
-    player->backward();
+    player->rewind();
 }
 
 extern "C"

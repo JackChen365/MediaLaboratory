@@ -14,76 +14,117 @@
 #include <SLES/OpenSLES_Android.h>
 
 extern "C" {
-#include "libavformat/avformat.h"
-#include "libswscale/swscale.h"
-#include <libswresample/swresample.h>
-#include <libavutil/frame.h>
-#include <libavutil/mem.h>
-#include "libavutil/time.h"
-#include <libavcodec/avcodec.h>
+    #include <libavformat/avformat.h>
+    #include <libswscale/swscale.h>
+    #include <libswresample/swresample.h>
+    #include <libavutil/frame.h>
+    #include <libavutil/mem.h>
+    #include <libavutil/time.h>
+    #include <libavcodec/avcodec.h>
 }
 
 #define VIDEO_TAG "VideoPlayerNative"
 #define  VIDEO_LOG_I(...)  __android_log_print(ANDROID_LOG_DEBUG, VIDEO_TAG, __VA_ARGS__)
 #define  VIDEO_LOG_E(...)  __android_log_print(ANDROID_LOG_ERROR, VIDEO_TAG, __VA_ARGS__)
 
+#define DEFAULT_SEEK_SHORT_TIME 5000
+
+#define INVALID_STREAM_INDEX -1
+#define MAX_QUEUE_SIZE 1
+
+#define PLAY_STATE_IDLE 0
+#define PLAY_STATE_PLAYING 1
+#define PLAY_STATE_PAUSED 2
+#define PLAY_STATE_STOPPED 3
+
+std::atomic_int playerState = PLAY_STATE_IDLE;
+
+#define AV_SYNC_THRESHOLD 1000
+
 class VideoPlayerAudioEngine;
+class VideoPlayerVideoEngine;
+
+/**
+ * Video Player class.
+ * We use the class: VideoPlayerAudioEngine and the class: VideoPlayerVideoEngine to help us manager all the audio and video things.
+ */
 class VideoPlayer {
 private:
-    VideoPlayerAudioEngine *audioPlayerEngine = NULL;
+    //The audio engine implement by OpenSL ES.
+    VideoPlayerAudioEngine *audioEngine = NULL;
+    //The video engine use the Surface to render the image.
+    VideoPlayerVideoEngine *videoEngine = NULL;
 
+    //The FFMPEG decode field.
     AVFormatContext *avFormatContext = NULL;
-    AVCodecContext *avCodecContext = NULL;
+    AVCodecContext *audioCodecContext = NULL;
+    AVCodecContext *videoCodecContext = NULL;
     AVPacket *avPacket = NULL;
     AVFrame *avFrame = NULL;
-    SwsContext* swsContext;
+    SwsContext* swsContext = NULL;
     SwrContext *swrContext = NULL;
-    uint8_t *outBuffer=NULL;
 
-    uint32_t videoStreamIndex = -1;
+    int64_t duration = 0;
+
+    uint32_t videoStreamIndex = INVALID_STREAM_INDEX;
     AVRational* videoTimeBase=NULL;
-    AVRational* videoAverageFrameRate = 0;
     uint8_t* videoFrameData=NULL;
+    uint8_t *videoBuffer=NULL;
     uint32_t videoWidth = 0;
     uint32_t videoHeight = 0;
-    uint64_t videoDuration = 0;
 
-    uint32_t audioStreamIndex = -1;
+    uint32_t audioStreamIndex = INVALID_STREAM_INDEX;
     AVRational* audioTimeBase = NULL;
-    uint64_t audioDuration = 0;
     uint32_t audioSampleRate = 0;
     uint32_t audioChannels = 0;
-    uint64_t audioStartTime;
+    uint8_t* audioBuffer=NULL;
     int channelNumber = 0;
 
-    int64_t startTime=0;
     int64_t currentPlayTime=0;
-    int64_t seekTime=0;
+    int64_t seekTimeStamp=0;
 
-    std::mutex* mutex=NULL;
-    std::condition_variable* consumeVar=NULL;
-    std::condition_variable* produceVar=NULL;
-    std::queue<AVFrame>* videoQueue=NULL;
-    std::queue<std::pair<uint8_t *,int>>* audioQueue=NULL;
+    //The mutex resources and condition variables.
+    std::atomic_int playerState = PLAY_STATE_IDLE;
     std::atomic_bool isBeginSeeking=false;
+    std::mutex* mutex=NULL;
+    std::condition_variable* audioConsumeVar=NULL;
+    std::condition_variable* videoConsumeVar=NULL;
+    std::condition_variable* playCondition=NULL;
+    std::condition_variable* produceVar=NULL;
 
-    void release();
+    //The queue for caching frame data.
+    std::deque<AVFrame*>* audioQueue=NULL;
+    std::deque<AVFrame*>* videoQueue=NULL;
+
+    //The player file
+    char *filePath=NULL;
+
+    /**
+     * Clear the buffered queue.
+     */
+    void clearBufferQueue();
+
 public:
     VideoPlayer();
     ~VideoPlayer();
-    /**
-     * Load the audio file.
-     * If load succeeds. return true otherwise false.
-     * @param filePath
-     * @return
-     */
-    bool loadFile(const char* filePath);
     /**
      * Read a audio frame from decoder.
      * @param pcmBuffer
      * @param bufferSize
      */
     void startReadFrame();
+    /**
+     * Prepare all the player resources, and ready to play.
+     * For a player before it releases the resources. It only needs to be prepared for once.
+     * @return if return true means prepare success other means failed.
+     */
+    bool prepare(JNIEnv *env,jobject surface);
+
+    /**
+     * Initial the data source.
+     * @param filePath
+     */
+    void setDataSource(const char *filePath);
     /**
      * Start play the audio
      * @param filePath
@@ -102,11 +143,10 @@ public:
      */
     void resume();
     /**
-     * Stop play and release the resources.
+     * Stop play and releaseResources the resources.
      * @return
      */
     void stop();
-
     /**
      * Seek to a specific time stamp
      * @param timeStamp
@@ -117,14 +157,35 @@ public:
      * @return
      */
     int64_t getCurrentPlayTime();
+    /**
+     * Release all the resources.
+     */
+    void releaseResources();
 
+    void rewind();
+
+    void fastForward();
+
+    /**
+     * Return the video width.
+     * @return
+     */
+    int32_t getWidth();
+
+    /**
+     * Return the video height.
+     * @return
+     */
+    int32_t getHeight();
     /**
      * Return the total playback duration. It is millisecond.
      * @return
      */
     int64_t getDuration();
 };
-
+//------------------------------------------------------------------------------
+// About audio player engine.
+//------------------------------------------------------------------------------
 
 /**
  * The abstraction of the audio player engine.
@@ -152,7 +213,7 @@ public:
 
     void setBufferSize(size_t bufferSize);
 
-    virtual void createEngine(unsigned int rate,unsigned int channels);
+    virtual void prepare();
 
     virtual void start();
 
@@ -176,13 +237,20 @@ private:
     SLObjectItf playerObject=NULL;
     SLPlayItf playerInterface=NULL;
     SLAndroidSimpleBufferQueueItf  slBufferQueueItf=NULL;
+
+    std::deque<AVFrame*> *queue;
+    std::mutex *mutex;
+    std::condition_variable *condition;
+    int32_t playState;
 public:
+    uint32_t rate;
+    uint32_t channels;
     VideoPlayerOpenSLAudioEngine();
     virtual ~VideoPlayerOpenSLAudioEngine();
 
     static void playerQueueCallBack(SLAndroidSimpleBufferQueueItf slBufferQueueItf, void* context);
 
-    void createEngine(unsigned int rate,unsigned int channels);
+    void prepare();
 
     /**
      * The player start play the audio.
@@ -197,36 +265,64 @@ public:
      */
     void resume();
     /**
-     * Stop the player and release all the resources.
+     * Stop the player and releaseResources all the resources.
      */
     void stop();
 };
-
-template <typename T>
+//------------------------------------------------------------------------------
+// About video player engine.
+//------------------------------------------------------------------------------
 class VideoPlayerVideoEngine{
 public:
     VideoPlayer* videoPlayer=NULL;
+
     VideoPlayerVideoEngine();
     virtual ~VideoPlayerVideoEngine();
 
-    VideoPlayer *getVideoPlayer() const;
-
     void setVideoPlayer(VideoPlayer *videoPlayer);
 
-    virtual void createEngine(JNIEnv *env,T surface);
+    VideoPlayer *getVideoPlayer() const;
 
-    virtual void draw();
+    virtual void prepare();
+
+    virtual void run();
+
+    virtual void start();
+
+    virtual void pause();
+
+    virtual void resume();
+
+    virtual void stop();
 };
 
-class VideoPlayerSurfaceEngine:public VideoPlayerVideoEngine<jobject>{
+class VideoPlayerSurfaceEngine:public VideoPlayerVideoEngine{
 private:
-    ANativeWindow* nativeWindow;
-    ANativeWindow_Buffer windowBuffer;
+    ANativeWindow *nativeWindow;
+    std::deque<AVFrame*> *queue;
+    std::mutex *mutex;
+    std::condition_variable *condition;
+    int32_t playState;
 public:
+    JNIEnv *env;
+    jobject surface;
+    int32_t width;
+    int32_t height;
+
     VideoPlayerSurfaceEngine();
     virtual ~VideoPlayerSurfaceEngine();
-    void createEngine(JNIEnv *env,jobject surface);
-    void draw();
+
+    void prepare();
+
+    void run();
+
+    void start();
+
+    void pause();
+
+    void resume();
+
+    void stop();
 };
 
 #endif //ANDROIDFFMPEGSAMPLE_VIDEOPLAYER_H

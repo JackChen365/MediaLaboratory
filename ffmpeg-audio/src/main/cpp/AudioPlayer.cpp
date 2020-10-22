@@ -175,14 +175,14 @@ void AudioPlayer::fastForward() {
     AUDIO_LOG_I("fastForward:%lld currentPlayTime:%lld duration:%lld",newTimeStamp,currentPlayTime,duration);
 }
 
-void AudioPlayer::backward() {
+void AudioPlayer::rewind() {
     isBeginSeeking = true;
     //Current millisecond;
     int64_t currentPlayTime = getCurrentPlayTime();
     int64_t newTimeStamp = currentPlayTime - DEFAULT_SEEK_SHORT_TIME > 0?
                currentPlayTime - DEFAULT_SEEK_SHORT_TIME : 0;
     seekTime = (newTimeStamp/1000)*(timeBase->den/timeBase->num);
-    AUDIO_LOG_I("backward:%lld",newTimeStamp);
+    AUDIO_LOG_I("rewind:%lld",newTimeStamp);
 }
 
 void AudioPlayer::release() {

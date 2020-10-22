@@ -1,8 +1,8 @@
 #include <jni.h>
-#include <condition_variable>
+#include <queue>
 #include <thread>
 #include <chrono>
-#include <queue>
+#include <condition_variable>
 #include <android/log.h>
 #include <android/native_window.h>
 #include <android/native_window_jni.h>
@@ -425,11 +425,6 @@ Java_com_cz_android_ffmpegsample2_VideoPlayer_nLoadFile(JNIEnv *env, jobject thi
         if(video_stream_idx!=-1&&audio_stream_idx!=-1){
             break;
         }
-    }
-    //获取解码器
-    AVCodec *pCodex = avcodec_find_decoder(audioCodecCtx->codec_id);
-    //打开解码器
-    if (avcodec_open2(audioCodecCtx, pCodex, NULL) < 0) {
     }
     //申请avpakcet，装解码前的数据
     packet = (AVPacket *)av_malloc(sizeof(AVPacket));

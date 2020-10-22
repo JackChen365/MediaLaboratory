@@ -7,41 +7,56 @@
 VideoPlayer::VideoPlayer() {
     //All the decode stuffs.
     avFormatContext = NULL;
-    avCodecContext = NULL;
+    audioCodecContext = NULL;
+    videoCodecContext = NULL;
     avPacket = NULL;
     avFrame = NULL;
     swrContext = NULL;
-    outBuffer=NULL;
+    videoBuffer=NULL;
     audioStreamIndex=-1;
     channelNumber = 0;
     //About player time.
-    audioDuration=0;
     audioTimeBase=NULL;
-    startTime=0;
     currentPlayTime=0;
-    seekTime=0;
-
-    mutex = new std::mutex();
-    consumeVar = new std::condition_variable();
-    produceVar = new std::condition_variable();
-    audioQueue = new std::queue<std::pair<uint8_t *,int>>();
-    videoQueue = new std::queue<AVFrame>();
-    //About play state.
-    isBeginSeeking=false;
+    seekTimeStamp=0;
 }
 
 VideoPlayer::~VideoPlayer() {
     av_frame_free(&avFrame);
     av_packet_free(&avPacket);
     swr_free(&swrContext);
-    avcodec_close(avCodecContext);
+    sws_freeContext(swsContext);
+    avcodec_close(audioCodecContext);
+    avcodec_close(videoCodecContext);
     avformat_close_input(&avFormatContext);
     delete audioTimeBase;
-    delete[] outBuffer;
+    delete videoTimeBase;
+    delete[] audioBuffer;
+    delete[] videoBuffer;
 }
 
-bool VideoPlayer::loadFile(const char *filePath) {
-    VIDEO_LOG_I("Video player loadFile!");
+void VideoPlayer::setDataSource(const char *filePath) {
+    this->filePath = (char*)filePath;
+}
+
+bool VideoPlayer::prepare(JNIEnv *env,jobject surface) {
+    //Before we prepare the player. We should always release the resources.
+    releaseResources();
+    //Initial all the thread resources.
+    if(!filePath){
+        VIDEO_LOG_E("Couldn't open the input file.\n");
+        return false;
+    }
+    mutex = new std::mutex();
+    produceVar = new std::condition_variable();
+    audioConsumeVar = new std::condition_variable();
+    videoConsumeVar = new std::condition_variable();
+    playCondition = new std::condition_variable();
+
+    audioQueue = new std::deque<AVFrame*>();
+    videoQueue = new std::deque<AVFrame*>();
+
+    av_register_all();
     avFormatContext = avformat_alloc_context();
     //open the input file.
     if (avformat_open_input(&avFormatContext, filePath, NULL, NULL) != 0) {
@@ -61,169 +76,336 @@ bool VideoPlayer::loadFile(const char *filePath) {
             VIDEO_LOG_E("ERROR unsupported codec!");
             continue;
         }
-        VIDEO_LOG_I("Video player codec_type:%d",localCodecParameters->codec_type);
         if (localCodecParameters->codec_type == AVMEDIA_TYPE_VIDEO) {
-            VIDEO_LOG_I("AVMEDIA_TYPE_VIDEO:%d",videoStreamIndex);
-            if (videoStreamIndex == -1) {
+            if (videoStreamIndex == INVALID_STREAM_INDEX) {
                 //When the stream is video we keep the position, the parameters and the codec.
                 videoStreamIndex = i;
                 videoWidth = localCodecParameters->width;
                 videoHeight = localCodecParameters->height;
-                videoAverageFrameRate=&avFormatContext->streams[i]->avg_frame_rate;
                 videoTimeBase = &avFormatContext->streams[i]->time_base;
-                videoDuration = avFormatContext->streams[i]->duration;
+                // Set up a codec context for the decoder
+                videoCodecContext = avcodec_alloc_context3(localCodec);
+                if (!videoCodecContext) {
+                    VIDEO_LOG_E("Couldn't create AVCodecContext\n");
+                    return 0;
+                }
+                if (avcodec_parameters_to_context(videoCodecContext, localCodecParameters) < 0) {
+                    VIDEO_LOG_E("Couldn't initialize AVCodecContext\n");
+                    return 0;
+                }
+                if (avcodec_open2(videoCodecContext, localCodec, NULL) < 0) {
+                    VIDEO_LOG_E("Couldn't open codec\n");
+                    return 0;
+                }
             }
         } else if(localCodecParameters->codec_type == AVMEDIA_TYPE_AUDIO){
-            VIDEO_LOG_I("AVMEDIA_TYPE_AUDIO:%d",audioStreamIndex);
-            if(audioStreamIndex == -1){
+            if(audioStreamIndex == INVALID_STREAM_INDEX){
                 audioStreamIndex = i;
                 audioSampleRate = localCodecParameters->sample_rate;
                 audioChannels = localCodecParameters->channels;
-                audioDuration = avFormatContext->streams[i]->duration;
                 audioTimeBase = &avFormatContext->streams[i]->time_base;
-                VIDEO_LOG_I("audioSampleRate:%d audioChannels:%d",audioSampleRate,audioChannels);
+                audioCodecContext = avcodec_alloc_context3(localCodec);
+                if (!audioCodecContext) {
+                    VIDEO_LOG_E("Couldn't create AVCodecContext\n");
+                    return 0;
+                }
+                if (avcodec_parameters_to_context(audioCodecContext, localCodecParameters) < 0) {
+                    VIDEO_LOG_E("Couldn't initialize AVCodecContext\n");
+                    return 0;
+                }
+                if (avcodec_open2(audioCodecContext, localCodec, NULL) < 0) {
+                    VIDEO_LOG_E("Couldn't open codec\n");
+                    return 0;
+                }
             }
         }
     }
-    // Set up a codec context for the decoder
-    avCodecContext = avcodec_alloc_context3(localCodec);
-    if (!avCodecContext) {
-        VIDEO_LOG_E("Couldn't create AVCodecContext\n");
-        return 0;
-    }
-    if (avcodec_parameters_to_context(avCodecContext, localCodecParameters) < 0) {
-        VIDEO_LOG_E("Couldn't initialize AVCodecContext\n");
-        return 0;
-    }
-    if (avcodec_open2(avCodecContext, localCodec, NULL) < 0) {
-        VIDEO_LOG_E("Couldn't open codec\n");
-        return 0;
-    }
+    //Make the duration as milliseconds.
+    duration = avFormatContext->duration / AV_TIME_BASE * 1000;
     //locate the av packet.
     avPacket = av_packet_alloc();
     if (!avPacket) {
         VIDEO_LOG_E("Couldn't allocate AVPacket\n");
-        return 0;
+        return false;
     }
     //locate the av frame.
     avFrame = av_frame_alloc();
     if (!avFrame) {
         VIDEO_LOG_E("Couldn't allocate AVFrame\n");
-        return 0;
-    }
-    swsContext = sws_getContext(videoWidth, videoHeight, avCodecContext->pix_fmt,
-                                      videoWidth, videoHeight, AV_PIX_FMT_RGB0,
-                                SWS_BILINEAR, NULL, NULL, NULL);
-    if(!swsContext){
-        VIDEO_LOG_E("Couldn't initialize the SWS pVideoReaderState!");
-        return -1;
+        return false;
     }
     if(!videoFrameData){
         videoFrameData=new uint8_t[videoWidth*videoHeight*4];
+    }
+
+    //Initial audio
+    swrContext = swr_alloc();
+    audioBuffer = (uint8_t *) av_malloc(44100 * 2);
+    //The output audio chanel is stereo.
+    uint64_t outChannelLayout=AV_CH_LAYOUT_STEREO;
+    //Audio sample format is signed 16 bit.
+    enum AVSampleFormat outFormat=AV_SAMPLE_FMT_S16;
+    int out_sample_rate = audioCodecContext->sample_rate;
+    swr_alloc_set_opts(swrContext, outChannelLayout, outFormat, out_sample_rate,
+                       audioCodecContext->channel_layout, audioCodecContext->sample_fmt, audioCodecContext->sample_rate, 0,
+                       NULL);
+    swr_init(swrContext);
+
+    //Initial video
+    swsContext = sws_getContext(videoWidth, videoHeight, videoCodecContext->pix_fmt,
+                                videoWidth, videoHeight, AV_PIX_FMT_RGB0,
+                                SWS_BILINEAR, NULL, NULL, NULL);
+    if(!swsContext){
+        VIDEO_LOG_E("Couldn't initialize the SWS pVideoReaderState!");
+        return false;
     }
     //Allocate SwrContext.
     swrContext = swr_alloc();
     if (!swrContext) {
         VIDEO_LOG_E("Couldn't allocate swrContext\n");
-        return 0;
+        return false;
     }
     //Initialize The buffer.
-    outBuffer = (uint8_t *) av_malloc(44100 * 2);
-    swr_alloc_set_opts(swrContext, AV_CH_LAYOUT_STEREO, AV_SAMPLE_FMT_S16, avCodecContext->sample_rate,
-                       avCodecContext->channel_layout, avCodecContext->sample_fmt, avCodecContext->sample_rate, 0,
+    videoBuffer = (uint8_t *) av_malloc(44100 * 2);
+    swr_alloc_set_opts(swrContext, AV_CH_LAYOUT_STEREO, AV_SAMPLE_FMT_S16, videoCodecContext->sample_rate,
+                       videoCodecContext->channel_layout, videoCodecContext->sample_fmt, videoCodecContext->sample_rate, 0,
                        NULL);
     swr_init(swrContext);
     //The channel number
     channelNumber = av_get_channel_layout_nb_channels(AV_CH_LAYOUT_STEREO);
-    outBuffer = (uint8_t *) av_malloc(44100 * 2);
+    videoBuffer = (uint8_t *) av_malloc(44100 * 2);
 
     //Initial the audio player engine.
-    audioPlayerEngine = new VideoPlayerOpenSLAudioEngine();
-    audioPlayerEngine->setVideoPlayer(this);
-    audioPlayerEngine->createEngine(audioSampleRate,audioChannels);
-    return true;
+    VideoPlayerOpenSLAudioEngine* openSlAudioEngine = new VideoPlayerOpenSLAudioEngine();
+    openSlAudioEngine->setVideoPlayer(this);
+    openSlAudioEngine->rate = audioSampleRate;
+    openSlAudioEngine->channels = audioChannels;
+    audioEngine = openSlAudioEngine;
+    audioEngine->prepare();
+
+    //Initial the video player engine.
+    VideoPlayerSurfaceEngine* surfaceEngine = new VideoPlayerSurfaceEngine();
+    surfaceEngine->setVideoPlayer(this);
+    surfaceEngine->env = env;
+    surfaceEngine->surface = surface;
+    surfaceEngine->width = videoWidth;
+    surfaceEngine->height = videoHeight;
+    videoEngine = surfaceEngine;
+    videoEngine->prepare();
 }
 
-void VideoPlayer::startReadFrame() {
-    if(isBeginSeeking){
-        isBeginSeeking = false;
-        if(av_seek_frame(avFormatContext,audioStreamIndex,seekTime,AVSEEK_FLAG_BACKWARD) < 0){
-            VIDEO_LOG_E("Seek failed.\n");
-        }
+void VideoPlayer::clearBufferQueue() {
+    auto audioIterator=std::begin(*audioQueue);
+    while(audioIterator<std::end(*audioQueue)){
+        av_frame_free(&*audioIterator);
+        audioIterator++;
     }
+    audioQueue->clear();
+    auto videoIterator=std::begin(*videoQueue);
+    while(videoIterator<std::end(*videoQueue)){
+        av_frame_free(&*videoIterator);
+        videoIterator++;
+    }
+    videoQueue->clear();
+}
+
+
+void VideoPlayer::startReadFrame() {
+    VIDEO_LOG_I("start read frame:%d",std::this_thread::get_id());
     while (av_read_frame(avFormatContext, avPacket) >= 0) {
-        if (avPacket->stream_index != videoStreamIndex&&avPacket->stream_index != audioStreamIndex) {
+        if(isBeginSeeking){
+            std::unique_lock l(mutex);
+            isBeginSeeking = false;
+            clearBufferQueue();
+            int64_t audioTimeStamp = (int64_t)seekTimeStamp / 1000.0 / av_q2d(*audioTimeBase);
+            currentPlayTime = audioTimeStamp;
+            VIDEO_LOG_E("readFrame seek:%lld audioSize:%d videoSize:%d",audioTimeStamp,audioQueue->size(),videoQueue->size());
+            if(av_seek_frame(avFormatContext,audioStreamIndex,audioTimeStamp,AVSEEK_FLAG_BACKWARD) < 0){
+                VIDEO_LOG_E("Audio seek failed.");
+            }
+            avcodec_flush_buffers(audioCodecContext);
+            avcodec_flush_buffers(videoCodecContext);
+            l.unlock();
+            //Skip this frame.
+            continue;
+        }
+        if(playerState == PLAY_STATE_STOPPED){
+            break;
+        }
+        if (avPacket->stream_index != audioStreamIndex&&avPacket->stream_index != videoStreamIndex) {
             av_packet_unref(avPacket);
             continue;
         }
-        //This is a video stream.
-        int ret = avcodec_send_packet(avCodecContext,avPacket);
-        if (ret < 0) {
-            VIDEO_LOG_E("Error while sending a packet to the decoder:%s", av_err2str(ret));
-            return;
-        }
-        ret = avcodec_receive_frame(avCodecContext,avFrame);
-        if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
-            continue;
-        } else if (ret < 0) {
-            VIDEO_LOG_E("Error while receiving a frame from the decoder:%s", av_err2str(ret));
-            return;
-        }
-        if (0 <= ret) {
-            VIDEO_LOG_I("Frame %c (%d) pts %d dts %d key_frame %d [coded_picture_number %d, display_picture_number %d]",
-                  av_get_picture_type_char(avFrame->pict_type),
-                  avCodecContext->frame_number,
-                  avFrame->pts,
-                  avFrame->pkt_dts,
-                  avFrame->key_frame,
-                  avFrame->coded_picture_number,
-                  avFrame->display_picture_number
-            );
-        }
-        av_packet_unref(avPacket);
-        //Take one packet.
         if(avPacket->stream_index == videoStreamIndex){
-            //It is a video packet.
-            videoQueue->push(*avFrame);
+            int ret=avcodec_send_packet(videoCodecContext, avPacket);
+            if (ret < 0) {
+                VIDEO_LOG_E("Video Error while sending a packet to the decoder:%s currentTime:%lld", av_err2str(ret),currentPlayTime);
+                continue;
+            }
+            ret = avcodec_receive_frame(videoCodecContext, avFrame);
+            if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
+                continue;
+            } else if (ret < 0) {
+                VIDEO_LOG_E("Video error while receiving a frame from the decoder:%s", av_err2str(ret));
+                continue;
+            }
+            VIDEO_LOG_I("Video Frame %c (%d) pts %lld dts %d key_frame %d [coded_picture_number %d, display_picture_number %d] timeRate:%f",
+                 av_get_picture_type_char(avFrame->pict_type),
+                 videoCodecContext->frame_number,
+                 avFrame->pts,
+                 avFrame->pkt_dts,
+                 avFrame->key_frame,
+                 avFrame->coded_picture_number,
+                 avFrame->display_picture_number,
+                 avFrame->pts*1.0*av_q2d(*audioTimeBase)
+            );
+            std::unique_lock l(*mutex);
+            while(playerState == PLAY_STATE_PLAYING&&0 < audioQueue->size()&&videoQueue->size()>=MAX_QUEUE_SIZE){
+                VIDEO_LOG_E("video produce wait\n");
+                produceVar->wait(l);
+            }
+            AVFrame *dst = av_frame_alloc();
+//            if(videoQueue.size()>=MAX_QUEUE_SIZE){
+//                videoQueue.pop_front();
+//            }
+            if (av_frame_ref(dst, avFrame) >= 0) {
+                videoQueue->push_back(dst);
+            }
+            VIDEO_LOG_E("video produce num:%d--------------\n",videoQueue->size());
+            videoConsumeVar->notify_one();
+            l.unlock();
         } else if(avPacket->stream_index == audioStreamIndex){
-            //It is a video packet.
-            currentPlayTime = avFrame->pts;
-            swr_convert(swrContext, &outBuffer, 44100 * 2, (const uint8_t **) avFrame->data, avFrame->nb_samples);
-            //The sample buffer size.
-            int sampleBufferSize = av_samples_get_buffer_size(NULL, channelNumber, avFrame->nb_samples,AV_SAMPLE_FMT_S16, 1);
-            std::pair<uint8_t *,int> buffer=std::make_pair(outBuffer,sampleBufferSize);
-
+            int ret=avcodec_send_packet(audioCodecContext, avPacket);
+            if (ret < 0) {
+                VIDEO_LOG_E("Audio Error while sending a packet to the decoder:%s", av_err2str(ret));
+                return;
+            }
+            ret = avcodec_receive_frame(audioCodecContext, avFrame);
+            if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
+                continue;
+            } else if (ret < 0) {
+                VIDEO_LOG_E("Audio Error while receiving a frame from the decoder:%s", av_err2str(ret));
+                return;
+            }
+            VIDEO_LOG_E("Audio Frame %c (%d) pts %lld dts %d key_frame %d [coded_picture_number %d, display_picture_number %d] timeRate:%f",
+                 av_get_picture_type_char(avFrame->pict_type),
+                 audioCodecContext->frame_number,
+                 avFrame->pts,
+                 avFrame->pkt_dts,
+                 avFrame->key_frame,
+                 avFrame->coded_picture_number,
+                 avFrame->display_picture_number,
+                 avFrame->pts*1.0*av_q2d(*audioTimeBase)
+            );
+            std::unique_lock l(*mutex);
+            while(playerState == PLAY_STATE_PLAYING&&0 < videoQueue->size()&&audioQueue->size()>=MAX_QUEUE_SIZE){
+                produceVar->wait(l);
+            }
+            AVFrame *dst = av_frame_alloc();
+            if (av_frame_ref(dst, avFrame) >= 0) {
+                audioQueue->push_back(dst);
+            }
+            audioConsumeVar->notify_one();
+            l.unlock();
+        }
+        //After we processed the frame. If we know the player wants to pause. We are start to wait.
+        if(playerState == PLAY_STATE_PAUSED){
+            std::unique_lock l(*mutex);
+            playCondition->wait(l);
+            l.unlock();
         }
     }
-    int64_t currentTime=av_gettime()-startTime;
-    int64_t timeStamp = avFrame->pkt_dts*av_q2d(*audioTimeBase)*1000;
-    int64_t deltaTime=timeStamp-currentTime;
-    if(0 < deltaTime){
-        std::this_thread::sleep_for(std::chrono::microseconds(deltaTime));
-    }
+    std::unique_lock l(mutex);
+    clearBufferQueue();
+    l.unlock();
+    audioConsumeVar->notify_one();
+    videoConsumeVar->notify_one();
+    VIDEO_LOG_I("the read thread is done.");
 }
 
 void VideoPlayer::start() {
-    startReadFrame();
-    audioPlayerEngine->start();
+    playerState = PLAY_STATE_PLAYING;
+    VideoPlayer* player=this;
+    std::thread readThread([player](){
+        player->startReadFrame();
+    });
+    readThread.detach();
+    audioEngine->start();
+    videoEngine->start();
 }
 
 void VideoPlayer::resume() {
-    audioPlayerEngine->resume();
+    playerState = PLAY_STATE_PLAYING;
+    audioEngine->resume();
+    videoEngine->resume();
+    playCondition->notify_one();
 }
 
 void VideoPlayer::pause() {
-    audioPlayerEngine->pause();
+    playerState = PLAY_STATE_PAUSED;
+    audioEngine->pause();
+    videoEngine->pause();
 }
 
 void VideoPlayer::seekTo(int64_t timeStamp) {
+    std::unique_lock l(mutex);
     isBeginSeeking = true;
-    seekTime = (timeStamp/1000)*(audioTimeBase->den/audioTimeBase->num);
+    seekTimeStamp = timeStamp;
+    currentPlayTime = (int64_t)timeStamp/1000.0/av_q2d(*audioTimeBase);
+    l.unlock();
+    VIDEO_LOG_I("nSeekTo:%lld",currentPlayTime);
 }
 
 void VideoPlayer::stop() {
-    audioPlayerEngine->stop();
-    release();
+    audioEngine->stop();
+    videoEngine->stop();
+}
+
+void VideoPlayer::fastForward() {
+    isBeginSeeking = true;
+    //Total duration which is millisecond.
+    int64_t duration = getDuration();
+    //Current millisecond;
+    int64_t currentPlayTime = getCurrentPlayTime();
+    int64_t newTimeStamp= currentPlayTime + DEFAULT_SEEK_SHORT_TIME < duration?
+                          currentPlayTime + DEFAULT_SEEK_SHORT_TIME : duration;
+    seekTimeStamp = (newTimeStamp/1000)*(audioTimeBase->den/audioTimeBase->num);
+    VIDEO_LOG_I("fastForward:%lld currentPlayTime:%lld duration:%lld",newTimeStamp,currentPlayTime,duration);
+}
+
+void VideoPlayer::rewind() {
+    isBeginSeeking = true;
+    //Current millisecond;
+    int64_t currentPlayTime = getCurrentPlayTime();
+    int64_t newTimeStamp = currentPlayTime - DEFAULT_SEEK_SHORT_TIME > 0?
+                           currentPlayTime - DEFAULT_SEEK_SHORT_TIME : 0;
+    seekTimeStamp = (newTimeStamp/1000)*(audioTimeBase->den/audioTimeBase->num);
+    VIDEO_LOG_I("rewind:%lld",newTimeStamp);
+}
+
+int32_t VideoPlayer::getWidth() {
+    return videoWidth;
+}
+
+int32_t VideoPlayer::getHeight() {
+    return videoHeight;
+}
+
+void VideoPlayer::releaseResources() {
+    av_packet_free(&avPacket);
+    av_frame_free(&avFrame);
+    swr_free(&swrContext);
+    sws_freeContext(swsContext);
+    avcodec_close(audioCodecContext);
+    avcodec_close(videoCodecContext);
+    avformat_close_input(&avFormatContext);
+
+    delete[] audioBuffer;
+    delete[] videoBuffer;
+
+    delete videoTimeBase;
+    delete audioTimeBase;
+    VIDEO_LOG_I("releaseResources all the resources.");
 }
 
 int64_t VideoPlayer::getCurrentPlayTime() {
@@ -231,19 +413,8 @@ int64_t VideoPlayer::getCurrentPlayTime() {
 }
 
 int64_t VideoPlayer::getDuration() {
-    return audioDuration*av_q2d(*audioTimeBase)*1000;
+    return duration;
 }
-
-void VideoPlayer::release() {
-    av_frame_free(&avFrame);
-    swr_free(&swrContext);
-    avcodec_close(avCodecContext);
-    avformat_close_input(&avFormatContext);
-    swr_free(&swrContext);
-    delete[] outBuffer;
-}
-
-
 
 //--------------------------------------------------------------------------------
 // Implementation of the class: AudioPlayerEngine
@@ -280,7 +451,7 @@ void VideoPlayerAudioEngine::setVideoPlayer(VideoPlayer *audioPlayer) {
     VideoPlayerAudioEngine::videoPlayer = audioPlayer;
 }
 
-void VideoPlayerAudioEngine::createEngine(unsigned int rate, unsigned int channels) {
+void VideoPlayerAudioEngine::prepare() {
 }
 
 void VideoPlayerAudioEngine::start() {
@@ -331,7 +502,7 @@ void VideoPlayerOpenSLAudioEngine::playerQueueCallBack(SLAndroidSimpleBufferQueu
     }
 }
 
-void VideoPlayerOpenSLAudioEngine::createEngine(unsigned int rate,unsigned int channels) {
+void VideoPlayerOpenSLAudioEngine::prepare() {
     //Create audio engine.
     VIDEO_LOG_I("OpenSLAudioPlayerEngine::createEngine rate:%d channels:%d",rate,channels);
     slCreateEngine(&engineObject,0,NULL,0,NULL,NULL);
@@ -396,6 +567,7 @@ void VideoPlayerOpenSLAudioEngine::pause() {
 void VideoPlayerOpenSLAudioEngine::resume() {
     VIDEO_LOG_I("resume");
     (*playerInterface)->SetPlayState(playerInterface,SL_PLAYSTATE_PLAYING);
+    playerQueueCallBack(slBufferQueueItf, this);
 }
 
 void VideoPlayerOpenSLAudioEngine::stop() {
@@ -407,20 +579,19 @@ void VideoPlayerOpenSLAudioEngine::stop() {
 //--------------------------------------------------------------------------------
 // Implementation of the class: VideoPlayerAudioEngine
 //--------------------------------------------------------------------------------
-template<> VideoPlayer* VideoPlayerVideoEngine<void*>::getVideoPlayer() const {
+VideoPlayer* VideoPlayerVideoEngine::getVideoPlayer() const {
     return videoPlayer;
 }
 
-template<> void VideoPlayerVideoEngine<void*>::setVideoPlayer(VideoPlayer *videoPlayer) {
+void VideoPlayerVideoEngine::setVideoPlayer(VideoPlayer *videoPlayer) {
     VideoPlayerVideoEngine::videoPlayer = videoPlayer;
 }
 
-template<> void VideoPlayerVideoEngine<void*>::createEngine(JNIEnv *env,void *surface) {}
-
-void VideoPlayerSurfaceEngine::createEngine(JNIEnv *env,jobject surface) {
+void VideoPlayerSurfaceEngine::prepare() {
     nativeWindow = ANativeWindow_fromSurface(env, surface);
+    ANativeWindow_setBuffersGeometry(nativeWindow, width,height,WINDOW_FORMAT_RGBA_8888);
 }
 
-void VideoPlayerSurfaceEngine::draw() {
+void VideoPlayerSurfaceEngine::run() {
 //    videoPlayer->readVideoFrame()
 }
