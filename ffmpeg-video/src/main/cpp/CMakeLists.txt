@@ -15,7 +15,7 @@ file(GLOB FFMPEG_HEADER ${FFMPEG_DIR}/include/*)
 link_directories(${FFMPEG_DIR}/libs/)
 include_directories(${FFMPEG_DIR}/include/)
 
-add_library(video-lib SHARED video-lib.cpp VideoPlayer.cpp VideoPlayer.cpp)
+add_library(video-lib SHARED video-lib.cpp VideoPlayer.h VideoPlayer.cpp)
 add_library(video-test-lib SHARED video-test-lib.cpp)
 
 add_library(avcodec SHARED IMPORTED)

@@ -41,7 +41,7 @@ void VideoPlayer::setDataSource(const char *filePath) {
 
 bool VideoPlayer::prepare(JNIEnv *env,jobject surface) {
     //Before we prepare the player. We should always release the resources.
-    releaseResources();
+//    releaseResources();
     //Initial all the thread resources.
     if(!filePath){
         VIDEO_LOG_E("Couldn't open the input file.\n");
@@ -55,8 +55,6 @@ bool VideoPlayer::prepare(JNIEnv *env,jobject surface) {
 
     audioQueue = new std::deque<AVFrame*>();
     videoQueue = new std::deque<AVFrame*>();
-
-    av_register_all();
     avFormatContext = avformat_alloc_context();
     //open the input file.
     if (avformat_open_input(&avFormatContext, filePath, NULL, NULL) != 0) {
@@ -119,6 +117,9 @@ bool VideoPlayer::prepare(JNIEnv *env,jobject surface) {
                 }
             }
         }
+        if(videoStreamIndex != INVALID_STREAM_INDEX&&audioStreamIndex != INVALID_STREAM_INDEX){
+            break;
+        }
     }
     //Make the duration as milliseconds.
     duration = avFormatContext->duration / AV_TIME_BASE * 1000;
@@ -134,23 +135,24 @@ bool VideoPlayer::prepare(JNIEnv *env,jobject surface) {
         VIDEO_LOG_E("Couldn't allocate AVFrame\n");
         return false;
     }
-    if(!videoFrameData){
-        videoFrameData=new uint8_t[videoWidth*videoHeight*4];
-    }
-
     //Initial audio
     swrContext = swr_alloc();
+    if (!swrContext) {
+        VIDEO_LOG_E("Couldn't allocate swrContext\n");
+        return false;
+    }
     audioBuffer = (uint8_t *) av_malloc(44100 * 2);
     //The output audio chanel is stereo.
-    uint64_t outChannelLayout=AV_CH_LAYOUT_STEREO;
     //Audio sample format is signed 16 bit.
     enum AVSampleFormat outFormat=AV_SAMPLE_FMT_S16;
-    int out_sample_rate = audioCodecContext->sample_rate;
-    swr_alloc_set_opts(swrContext, outChannelLayout, outFormat, out_sample_rate,
-                       audioCodecContext->channel_layout, audioCodecContext->sample_fmt, audioCodecContext->sample_rate, 0,
-                       NULL);
+    swr_alloc_set_opts(swrContext, AV_CH_LAYOUT_STEREO, AV_SAMPLE_FMT_S16, audioCodecContext->sample_rate,
+                       audioCodecContext->channel_layout, audioCodecContext->sample_fmt, audioCodecContext->sample_rate, 0,NULL);
     swr_init(swrContext);
+    //The channel number
+    channelNumber = av_get_channel_layout_nb_channels(AV_CH_LAYOUT_STEREO);
 
+    //Initialize The buffer.
+    videoBuffer=new uint8_t[videoWidth*videoHeight*4];
     //Initial video
     swsContext = sws_getContext(videoWidth, videoHeight, videoCodecContext->pix_fmt,
                                 videoWidth, videoHeight, AV_PIX_FMT_RGB0,
@@ -159,39 +161,18 @@ bool VideoPlayer::prepare(JNIEnv *env,jobject surface) {
         VIDEO_LOG_E("Couldn't initialize the SWS pVideoReaderState!");
         return false;
     }
-    //Allocate SwrContext.
-    swrContext = swr_alloc();
-    if (!swrContext) {
-        VIDEO_LOG_E("Couldn't allocate swrContext\n");
-        return false;
-    }
-    //Initialize The buffer.
-    videoBuffer = (uint8_t *) av_malloc(44100 * 2);
-    swr_alloc_set_opts(swrContext, AV_CH_LAYOUT_STEREO, AV_SAMPLE_FMT_S16, videoCodecContext->sample_rate,
-                       videoCodecContext->channel_layout, videoCodecContext->sample_fmt, videoCodecContext->sample_rate, 0,
-                       NULL);
-    swr_init(swrContext);
-    //The channel number
-    channelNumber = av_get_channel_layout_nb_channels(AV_CH_LAYOUT_STEREO);
-    videoBuffer = (uint8_t *) av_malloc(44100 * 2);
-
     //Initial the audio player engine.
-    VideoPlayerOpenSLAudioEngine* openSlAudioEngine = new VideoPlayerOpenSLAudioEngine();
-    openSlAudioEngine->setVideoPlayer(this);
-    openSlAudioEngine->rate = audioSampleRate;
-    openSlAudioEngine->channels = audioChannels;
-    audioEngine = openSlAudioEngine;
-    audioEngine->prepare();
+    audioEngine = new VideoPlayerAudioEngine();
+    audioEngine->videoPlayer = this;
+    audioEngine->prepare(audioSampleRate,audioChannels);
 
     //Initial the video player engine.
-    VideoPlayerSurfaceEngine* surfaceEngine = new VideoPlayerSurfaceEngine();
-    surfaceEngine->setVideoPlayer(this);
-    surfaceEngine->env = env;
-    surfaceEngine->surface = surface;
-    surfaceEngine->width = videoWidth;
-    surfaceEngine->height = videoHeight;
-    videoEngine = surfaceEngine;
-    videoEngine->prepare();
+    videoEngine = new VideoPlayerVideoEngine();
+    videoEngine->videoPlayer = this;
+    videoEngine->prepare(env,surface,videoWidth,videoHeight);
+
+    VIDEO_LOG_I("Preparation is done.\n");
+    return true;
 }
 
 void VideoPlayer::clearBufferQueue() {
@@ -211,10 +192,10 @@ void VideoPlayer::clearBufferQueue() {
 
 
 void VideoPlayer::startReadFrame() {
-    VIDEO_LOG_I("start read frame:%d",std::this_thread::get_id());
+    std::mutex& m = *mutex;
     while (av_read_frame(avFormatContext, avPacket) >= 0) {
         if(isBeginSeeking){
-            std::unique_lock l(mutex);
+            std::unique_lock l(m);
             isBeginSeeking = false;
             clearBufferQueue();
             int64_t audioTimeStamp = (int64_t)seekTimeStamp / 1000.0 / av_q2d(*audioTimeBase);
@@ -249,7 +230,7 @@ void VideoPlayer::startReadFrame() {
                 VIDEO_LOG_E("Video error while receiving a frame from the decoder:%s", av_err2str(ret));
                 continue;
             }
-            VIDEO_LOG_I("Video Frame %c (%d) pts %lld dts %d key_frame %d [coded_picture_number %d, display_picture_number %d] timeRate:%f",
+            VIDEO_LOG_I("Video Frame %c (%d) pts %lld dts %lld key_frame %d [coded_picture_number %d, display_picture_number %d] timeRate:%f",
                  av_get_picture_type_char(avFrame->pict_type),
                  videoCodecContext->frame_number,
                  avFrame->pts,
@@ -259,22 +240,20 @@ void VideoPlayer::startReadFrame() {
                  avFrame->display_picture_number,
                  avFrame->pts*1.0*av_q2d(*audioTimeBase)
             );
-            std::unique_lock l(*mutex);
+            std::unique_lock l(m);
             while(playerState == PLAY_STATE_PLAYING&&0 < audioQueue->size()&&videoQueue->size()>=MAX_QUEUE_SIZE){
                 VIDEO_LOG_E("video produce wait\n");
                 produceVar->wait(l);
             }
             AVFrame *dst = av_frame_alloc();
-//            if(videoQueue.size()>=MAX_QUEUE_SIZE){
-//                videoQueue.pop_front();
-//            }
             if (av_frame_ref(dst, avFrame) >= 0) {
                 videoQueue->push_back(dst);
             }
             VIDEO_LOG_E("video produce num:%d--------------\n",videoQueue->size());
             videoConsumeVar->notify_one();
             l.unlock();
-        } else if(avPacket->stream_index == audioStreamIndex){
+        }
+        if(avPacket->stream_index == audioStreamIndex){
             int ret=avcodec_send_packet(audioCodecContext, avPacket);
             if (ret < 0) {
                 VIDEO_LOG_E("Audio Error while sending a packet to the decoder:%s", av_err2str(ret));
@@ -287,7 +266,7 @@ void VideoPlayer::startReadFrame() {
                 VIDEO_LOG_E("Audio Error while receiving a frame from the decoder:%s", av_err2str(ret));
                 return;
             }
-            VIDEO_LOG_E("Audio Frame %c (%d) pts %lld dts %d key_frame %d [coded_picture_number %d, display_picture_number %d] timeRate:%f",
+            VIDEO_LOG_I("Audio Frame %c (%d) pts %lld dts %lld key_frame %d [coded_picture_number %d, display_picture_number %d] timeRate:%f",
                  av_get_picture_type_char(avFrame->pict_type),
                  audioCodecContext->frame_number,
                  avFrame->pts,
@@ -297,7 +276,7 @@ void VideoPlayer::startReadFrame() {
                  avFrame->display_picture_number,
                  avFrame->pts*1.0*av_q2d(*audioTimeBase)
             );
-            std::unique_lock l(*mutex);
+            std::unique_lock l(m);
             while(playerState == PLAY_STATE_PLAYING&&0 < videoQueue->size()&&audioQueue->size()>=MAX_QUEUE_SIZE){
                 produceVar->wait(l);
             }
@@ -310,12 +289,12 @@ void VideoPlayer::startReadFrame() {
         }
         //After we processed the frame. If we know the player wants to pause. We are start to wait.
         if(playerState == PLAY_STATE_PAUSED){
-            std::unique_lock l(*mutex);
+            std::unique_lock l(m);
             playCondition->wait(l);
             l.unlock();
         }
     }
-    std::unique_lock l(mutex);
+    std::unique_lock l(m);
     clearBufferQueue();
     l.unlock();
     audioConsumeVar->notify_one();
@@ -348,7 +327,8 @@ void VideoPlayer::pause() {
 }
 
 void VideoPlayer::seekTo(int64_t timeStamp) {
-    std::unique_lock l(mutex);
+    std::mutex& m=*mutex;
+    std::unique_lock l(m);
     isBeginSeeking = true;
     seekTimeStamp = timeStamp;
     currentPlayTime = (int64_t)timeStamp/1000.0/av_q2d(*audioTimeBase);
@@ -417,59 +397,9 @@ int64_t VideoPlayer::getDuration() {
 }
 
 //--------------------------------------------------------------------------------
-// Implementation of the class: AudioPlayerEngine
-//--------------------------------------------------------------------------------
-VideoPlayerAudioEngine::VideoPlayerAudioEngine() {
-}
-
-VideoPlayerAudioEngine::~VideoPlayerAudioEngine(){
-    //Do not delete the pointer: audio player.
-//    delete[] buffer;
-}
-
-void *VideoPlayerAudioEngine::getBuffer() const {
-    return buffer;
-}
-
-void VideoPlayerAudioEngine::setBuffer(void *buffer) {
-    VideoPlayerAudioEngine::buffer = buffer;
-}
-
-size_t VideoPlayerAudioEngine::getBufferSize() const {
-    return bufferSize;
-}
-
-void VideoPlayerAudioEngine::setBufferSize(size_t bufferSize) {
-    VideoPlayerAudioEngine::bufferSize = bufferSize;
-}
-
-VideoPlayer *VideoPlayerAudioEngine::getVideoPlayer() const {
-    return videoPlayer;
-}
-
-void VideoPlayerAudioEngine::setVideoPlayer(VideoPlayer *audioPlayer) {
-    VideoPlayerAudioEngine::videoPlayer = audioPlayer;
-}
-
-void VideoPlayerAudioEngine::prepare() {
-}
-
-void VideoPlayerAudioEngine::start() {
-}
-
-void VideoPlayerAudioEngine::resume() {
-}
-
-void VideoPlayerAudioEngine::pause() {
-}
-
-void VideoPlayerAudioEngine::stop() {
-}
-
-//--------------------------------------------------------------------------------
 // Implementation of the class: OpenSLAudioPlayerEngine
 //--------------------------------------------------------------------------------
-VideoPlayerOpenSLAudioEngine::VideoPlayerOpenSLAudioEngine():VideoPlayerAudioEngine(){
+VideoPlayerAudioEngine::VideoPlayerAudioEngine(){
     engineObject=NULL;
     engineEngine = NULL;
     outputMixObject = NULL;
@@ -480,7 +410,7 @@ VideoPlayerOpenSLAudioEngine::VideoPlayerOpenSLAudioEngine():VideoPlayerAudioEng
     slBufferQueueItf=NULL;
 }
 
-VideoPlayerOpenSLAudioEngine::~VideoPlayerOpenSLAudioEngine(){
+VideoPlayerAudioEngine::~VideoPlayerAudioEngine(){
     delete engineObject;
     delete engineEngine;
     delete outputMixObject;
@@ -490,19 +420,49 @@ VideoPlayerOpenSLAudioEngine::~VideoPlayerOpenSLAudioEngine(){
     delete slBufferQueueItf;
 }
 
-void VideoPlayerOpenSLAudioEngine::playerQueueCallBack(SLAndroidSimpleBufferQueueItf slBufferQueueItf,void *context) {
-    VideoPlayerOpenSLAudioEngine* engine=(VideoPlayerOpenSLAudioEngine*) context;
-    VIDEO_LOG_I("playerQueueCallBack:%d",engine);
-    auto videoPlayer=engine->getVideoPlayer();
-    void *buffer=engine->getBuffer();
-    auto bufferSize=engine->getBufferSize();
-//    videoPlayer->readAudioFrame(&buffer,&bufferSize);
-    if(buffer!=NULL&&bufferSize!=0){
-        (*slBufferQueueItf)->Enqueue(slBufferQueueItf,buffer,bufferSize);
+void VideoPlayerAudioEngine::playerQueueCallBack(SLAndroidSimpleBufferQueueItf slBufferQueueItf,void *context) {
+    VideoPlayerAudioEngine* engine=(VideoPlayerAudioEngine*) context;
+    VIDEO_LOG_I("playerQueueCallBack");
+    auto& videoPlayer= *engine->videoPlayer;
+    auto& swrContext=*videoPlayer.swrContext;
+    auto& audioBuffer = videoPlayer.audioBuffer;
+    auto& channels = videoPlayer.channelNumber;
+    auto& audioQueue = *videoPlayer.audioQueue;
+    auto& audioConsumeVar = *videoPlayer.audioConsumeVar;
+    auto& produceVar = *videoPlayer.produceVar;
+    auto& mutex=*videoPlayer.mutex;
+
+    auto& playInterface = *engine->playerInterface;
+    AVFrame * frame=NULL;
+    std::unique_lock l(mutex);
+    if(audioQueue.empty()){
+        audioConsumeVar.wait(l);
     }
+    if(videoPlayer.playerState == PLAY_STATE_STOPPED){
+        return;
+    }
+    frame = audioQueue.front();
+    audioQueue.pop_front();
+    if(0 == audioQueue.size()){
+        produceVar.notify_one();
+    }
+    videoPlayer.currentPlayTime = frame->pts;
+    uint32_t audioPosition;
+    playInterface->GetPosition(&playInterface,&audioPosition);
+    if(0 > videoPlayer.currentPlayTime){
+        VIDEO_LOG_I("currentPlayTime is negative!");
+    }
+    VIDEO_LOG_I("Audio duration:%lld currentPlayTime:%lld pts:%lld",audioPosition,videoPlayer.currentPlayTime,frame->pts);
+    l.unlock();
+    swr_convert(&swrContext, &audioBuffer, 44100 * 2, (const uint8_t **) frame->data, frame->nb_samples);
+    int bufferSize = av_samples_get_buffer_size(NULL, channels, frame->nb_samples,AV_SAMPLE_FMT_S16, 1);
+    if(audioBuffer != NULL && bufferSize != 0){
+        (*slBufferQueueItf)->Enqueue(slBufferQueueItf, audioBuffer, bufferSize);
+    }
+    av_frame_free(&frame);
 }
 
-void VideoPlayerOpenSLAudioEngine::prepare() {
+void VideoPlayerAudioEngine::prepare(uint32_t rate,uint32_t channels) {
     //Create audio engine.
     VIDEO_LOG_I("OpenSLAudioPlayerEngine::createEngine rate:%d channels:%d",rate,channels);
     slCreateEngine(&engineObject,0,NULL,0,NULL,NULL);
@@ -550,28 +510,27 @@ void VideoPlayerOpenSLAudioEngine::prepare() {
     if (ret != SL_RESULT_SUCCESS) {
         VIDEO_LOG_I("register read pcm data callback failed");
     }
-
 }
 
-void VideoPlayerOpenSLAudioEngine::start() {
-    VIDEO_LOG_I("start");
+void VideoPlayerAudioEngine::start() {
+    VIDEO_LOG_I("AudioEngine start");
     (*playerInterface)->SetPlayState(playerInterface,SL_PLAYSTATE_PLAYING);
     playerQueueCallBack(slBufferQueueItf,this);
 }
 
-void VideoPlayerOpenSLAudioEngine::pause() {
-    VIDEO_LOG_I("pause");
+void VideoPlayerAudioEngine::pause() {
+    VIDEO_LOG_I("AudioEngine pause");
     (*playerInterface)->SetPlayState(playerInterface,SL_PLAYSTATE_PAUSED);
 }
 
-void VideoPlayerOpenSLAudioEngine::resume() {
-    VIDEO_LOG_I("resume");
+void VideoPlayerAudioEngine::resume() {
+    VIDEO_LOG_I("AudioEngine resume");
     (*playerInterface)->SetPlayState(playerInterface,SL_PLAYSTATE_PLAYING);
     playerQueueCallBack(slBufferQueueItf, this);
 }
 
-void VideoPlayerOpenSLAudioEngine::stop() {
-    VIDEO_LOG_I("stop");
+void VideoPlayerAudioEngine::stop() {
+    VIDEO_LOG_I("AudioEngine stop");
     (*playerInterface)->SetPlayState(playerInterface,SL_PLAYSTATE_STOPPED);
 }
 
@@ -579,19 +538,95 @@ void VideoPlayerOpenSLAudioEngine::stop() {
 //--------------------------------------------------------------------------------
 // Implementation of the class: VideoPlayerAudioEngine
 //--------------------------------------------------------------------------------
-VideoPlayer* VideoPlayerVideoEngine::getVideoPlayer() const {
-    return videoPlayer;
+VideoPlayerVideoEngine::VideoPlayerVideoEngine(){
 }
 
-void VideoPlayerVideoEngine::setVideoPlayer(VideoPlayer *videoPlayer) {
-    VideoPlayerVideoEngine::videoPlayer = videoPlayer;
+VideoPlayerVideoEngine::~VideoPlayerVideoEngine() {
 }
 
-void VideoPlayerSurfaceEngine::prepare() {
+void VideoPlayerVideoEngine::prepare(JNIEnv *env,jobject surface,int32_t width,int32_t height) {
     nativeWindow = ANativeWindow_fromSurface(env, surface);
     ANativeWindow_setBuffersGeometry(nativeWindow, width,height,WINDOW_FORMAT_RGBA_8888);
 }
 
-void VideoPlayerSurfaceEngine::run() {
-//    videoPlayer->readVideoFrame()
+void VideoPlayerVideoEngine::run() {
+    AVFrame * frame=NULL;
+    auto& videoQueue=*videoPlayer->videoQueue;
+    auto& swsContext=*videoPlayer->swsContext;
+    auto& mutex = *videoPlayer->mutex;
+    auto& videoConsumeVar=*videoPlayer->videoConsumeVar;
+    auto& produceVar=*videoPlayer->produceVar;
+    auto& playerState=videoPlayer->playerState;
+    auto& audioTimeBase=*videoPlayer->audioTimeBase;
+    auto& videoTimeBase=*videoPlayer->videoTimeBase;
+    auto& videoBuffer = videoPlayer->videoBuffer;
+
+    while(playerState == PLAY_STATE_PLAYING||playerState==PLAY_STATE_PAUSED){
+        std::unique_lock l(mutex);
+        if(videoQueue.empty()){
+            videoConsumeVar.wait(l);
+        }
+        if(playerState == PLAY_STATE_STOPPED){
+            break;
+        }
+        if(playerState == PLAY_STATE_PAUSED){
+            videoConsumeVar.wait(l);
+        }
+        frame = videoQueue.front();
+        videoQueue.pop_front();
+        if(videoQueue.empty()){
+            produceVar.notify_one();
+        }
+        l.unlock();
+        int64_t audioPlayTime=(int64_t)(videoPlayer->currentPlayTime * av_q2d(audioTimeBase) * videoTimeBase.den);
+        int64_t delta = frame->pts - audioPlayTime;
+        int64_t deltaMilliseconds = delta * av_q2d(videoTimeBase) * 1000;
+        if(AV_SYNC_THRESHOLD > abs(deltaMilliseconds)){
+            if(0 < deltaMilliseconds){
+                VIDEO_LOG_I("renderSurface wait:%lld",deltaMilliseconds);
+                std::this_thread::sleep_for(std::chrono::milliseconds (deltaMilliseconds));
+            }
+        } else {
+            //skip
+            VIDEO_LOG_I("renderSurface skip:%lld",deltaMilliseconds);
+            continue;
+        }
+        VIDEO_LOG_I("renderSurface:%lld dts:%lld time:%lld",audioPlayTime,frame->pts,delta);
+        ANativeWindow_Buffer window_buffer;
+        if (ANativeWindow_lock(nativeWindow, &window_buffer, 0)) {
+            return;
+        }
+        uint8_t* dest[4] = {videoBuffer, NULL, NULL, NULL };
+        int dest_linesize[4] = { (int)videoPlayer->videoWidth * 4, 0, 0, 0 };
+        sws_scale(&swsContext,frame->data,frame->linesize,0,videoPlayer->videoHeight,dest,dest_linesize);
+        uint8_t *dst = (uint8_t *) window_buffer.bits;
+        int dstStride = window_buffer.stride * 4;
+        int srcStride = frame->linesize[0]*4;
+        for (int i = 0; i < videoPlayer->videoHeight; ++i) {
+            memcpy(dst + i * dstStride, videoBuffer + i * srcStride, srcStride);
+        }
+        ANativeWindow_unlockAndPost(nativeWindow);
+        av_frame_free(&frame);
+    }
+    VIDEO_LOG_I("The read surface thread is done.");
 }
+
+void VideoPlayerVideoEngine::start() {
+    VIDEO_LOG_I("VideoEngine start");
+    VideoPlayerVideoEngine* player=this;
+    std::thread videoThread([player](){ player->run(); });
+    videoThread.detach();
+}
+
+void VideoPlayerVideoEngine::pause() {
+    VIDEO_LOG_I("VideoEngine pause");
+}
+
+void VideoPlayerVideoEngine::resume() {
+
+}
+
+void VideoPlayerVideoEngine::stop() {
+
+}
+

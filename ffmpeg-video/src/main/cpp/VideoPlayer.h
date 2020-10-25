@@ -30,14 +30,12 @@ extern "C" {
 #define DEFAULT_SEEK_SHORT_TIME 5000
 
 #define INVALID_STREAM_INDEX -1
-#define MAX_QUEUE_SIZE 1
+#define MAX_QUEUE_SIZE 5
 
 #define PLAY_STATE_IDLE 0
 #define PLAY_STATE_PLAYING 1
 #define PLAY_STATE_PAUSED 2
 #define PLAY_STATE_STOPPED 3
-
-std::atomic_int playerState = PLAY_STATE_IDLE;
 
 #define AV_SYNC_THRESHOLD 1000
 
@@ -49,7 +47,12 @@ class VideoPlayerVideoEngine;
  * We use the class: VideoPlayerAudioEngine and the class: VideoPlayerVideoEngine to help us manager all the audio and video things.
  */
 class VideoPlayer {
-private:
+    /**
+     * Clear the buffered queue.
+     */
+    void clearBufferQueue();
+
+public:
     //The audio engine implement by OpenSL ES.
     VideoPlayerAudioEngine *audioEngine = NULL;
     //The video engine use the Surface to render the image.
@@ -68,7 +71,6 @@ private:
 
     uint32_t videoStreamIndex = INVALID_STREAM_INDEX;
     AVRational* videoTimeBase=NULL;
-    uint8_t* videoFrameData=NULL;
     uint8_t *videoBuffer=NULL;
     uint32_t videoWidth = 0;
     uint32_t videoHeight = 0;
@@ -99,12 +101,6 @@ private:
     //The player file
     char *filePath=NULL;
 
-    /**
-     * Clear the buffered queue.
-     */
-    void clearBufferQueue();
-
-public:
     VideoPlayer();
     ~VideoPlayer();
     /**
@@ -193,42 +189,8 @@ public:
  *
  */
 class VideoPlayerAudioEngine {
-private:
-    VideoPlayer* videoPlayer;
-    void *buffer;
-    size_t bufferSize =0;
 public:
-    VideoPlayerAudioEngine();
-    virtual ~VideoPlayerAudioEngine();
-
-    VideoPlayer *getVideoPlayer() const;
-
-    void setVideoPlayer(VideoPlayer *videoPlayer);
-
-    void *getBuffer() const;
-
-    void setBuffer(void *buffer);
-
-    size_t getBufferSize() const;
-
-    void setBufferSize(size_t bufferSize);
-
-    virtual void prepare();
-
-    virtual void start();
-
-    virtual void pause();
-
-    virtual void resume();
-
-    virtual void stop();
-};
-
-/**
- * The implementation using the OpenSL.
- */
-class VideoPlayerOpenSLAudioEngine : public VideoPlayerAudioEngine{
-private:
+    VideoPlayer* videoPlayer=NULL;
     SLObjectItf engineObject=NULL;
     SLEngineItf engineEngine = NULL;
     SLObjectItf outputMixObject = NULL;
@@ -238,19 +200,11 @@ private:
     SLPlayItf playerInterface=NULL;
     SLAndroidSimpleBufferQueueItf  slBufferQueueItf=NULL;
 
-    std::deque<AVFrame*> *queue;
-    std::mutex *mutex;
-    std::condition_variable *condition;
-    int32_t playState;
-public:
-    uint32_t rate;
-    uint32_t channels;
-    VideoPlayerOpenSLAudioEngine();
-    virtual ~VideoPlayerOpenSLAudioEngine();
-
+    VideoPlayerAudioEngine();
+    ~VideoPlayerAudioEngine();
     static void playerQueueCallBack(SLAndroidSimpleBufferQueueItf slBufferQueueItf, void* context);
 
-    void prepare();
+    void prepare(uint32_t rate,uint32_t channels);
 
     /**
      * The player start play the audio.
@@ -269,50 +223,20 @@ public:
      */
     void stop();
 };
+
 //------------------------------------------------------------------------------
 // About video player engine.
 //------------------------------------------------------------------------------
 class VideoPlayerVideoEngine{
+private:
+    ANativeWindow *nativeWindow=NULL;
 public:
     VideoPlayer* videoPlayer=NULL;
 
     VideoPlayerVideoEngine();
-    virtual ~VideoPlayerVideoEngine();
+    ~VideoPlayerVideoEngine();
 
-    void setVideoPlayer(VideoPlayer *videoPlayer);
-
-    VideoPlayer *getVideoPlayer() const;
-
-    virtual void prepare();
-
-    virtual void run();
-
-    virtual void start();
-
-    virtual void pause();
-
-    virtual void resume();
-
-    virtual void stop();
-};
-
-class VideoPlayerSurfaceEngine:public VideoPlayerVideoEngine{
-private:
-    ANativeWindow *nativeWindow;
-    std::deque<AVFrame*> *queue;
-    std::mutex *mutex;
-    std::condition_variable *condition;
-    int32_t playState;
-public:
-    JNIEnv *env;
-    jobject surface;
-    int32_t width;
-    int32_t height;
-
-    VideoPlayerSurfaceEngine();
-    virtual ~VideoPlayerSurfaceEngine();
-
-    void prepare();
+    void prepare(JNIEnv *env,jobject surface,int32_t width,int32_t height);
 
     void run();
 

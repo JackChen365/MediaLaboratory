@@ -38,7 +38,9 @@ public class PlayerSurfaceView extends SurfaceView implements SurfaceHolder.Call
     }
 
     public boolean loadFile(String filePath){
-        return videoPlayer.loadFile(filePath);
+        SurfaceHolder holder = getHolder();
+        Surface surface = holder.getSurface();
+        return videoPlayer.prepare(filePath,surface);
     }
 
     /**
@@ -48,8 +50,7 @@ public class PlayerSurfaceView extends SurfaceView implements SurfaceHolder.Call
     public void start(){
         SurfaceHolder holder = getHolder();
         if(isCreating){
-            Surface surface = holder.getSurface();
-            videoPlayer.start(surface);
+            videoPlayer.start();
         }
         isPendingPlay = holder.isCreating();
     }
@@ -66,13 +67,24 @@ public class PlayerSurfaceView extends SurfaceView implements SurfaceHolder.Call
         videoPlayer.stop();
     }
 
+    public long getDuration(){
+        return videoPlayer.getDuration();
+    }
+
+    public long getCurrentPlayTime(){
+        return videoPlayer.getCurrentPlayTime();
+    }
+
+    public void seekTo(long timeStamp){
+        videoPlayer.seekTo(timeStamp);
+    }
+
     @Override
     public void surfaceCreated(@NonNull SurfaceHolder surfaceHolder) {
         isCreating = true;
         if(isPendingPlay){
             isPendingPlay = false;
-            Surface surface = surfaceHolder.getSurface();
-            videoPlayer.start(surface);
+            videoPlayer.start();
         }
     }
 

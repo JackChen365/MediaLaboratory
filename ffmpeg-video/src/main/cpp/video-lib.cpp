@@ -6,59 +6,69 @@
 
 extern "C"
 JNIEXPORT jlong JNICALL
-Java_com_cz_android_ffmpeg_sample_video_VideoPlayer_nLoadFile(JNIEnv *env, jobject thiz,
-                                                              jstring file_path) {
-    const char* filePath=env->GetStringUTFChars(file_path,0);
+Java_com_cz_android_media_ffmpeg_video_player_VideoPlayer_nAllocatePlayer(JNIEnv *env,jobject thiz) {
+
     VideoPlayer* player=new VideoPlayer();
+    return (jlong)player;
+}
+
+extern "C"
+JNIEXPORT jboolean JNICALL
+Java_com_cz_android_media_ffmpeg_video_player_VideoPlayer_nPrepare(JNIEnv *env, jobject thiz,
+                                                                   jlong ref, jstring file_path,
+                                                                   jobject surface) {
+    VideoPlayer* player=(VideoPlayer*)ref;
+    const char* filePath=env->GetStringUTFChars(file_path,0);
     //Start load the audio file. return 0 if success, the others mean failed.
-    if(player->loadFile(filePath)){
+    player->setDataSource(filePath);
+    if(player->prepare(env,surface)){
         env->ReleaseStringUTFChars(file_path,filePath);
         //Return the object pointer.
-        return (jlong)player;
+        return true;
     }
     env->ReleaseStringUTFChars(file_path,filePath);
     //Return zero means load failed.
-    return 0;
+    return false;
 }
 
 extern "C"
 JNIEXPORT void JNICALL
-Java_com_cz_android_ffmpeg_sample_video_VideoPlayer_nStart(JNIEnv *env, jobject thiz, jlong ref,jobject surface) {
+Java_com_cz_android_media_ffmpeg_video_player_VideoPlayer_nStart(JNIEnv *env, jobject thiz, jlong ref) {
     VideoPlayer* player=(VideoPlayer*)ref;
     player->start();
 }
 
 extern "C"
 JNIEXPORT void JNICALL
-Java_com_cz_android_ffmpeg_sample_video_VideoPlayer_nPause(JNIEnv *env, jobject thiz, jlong ref) {
+Java_com_cz_android_media_ffmpeg_video_player_VideoPlayer_nPause(JNIEnv *env, jobject thiz, jlong ref) {
     VideoPlayer* player=(VideoPlayer*)ref;
     player->pause();
 }
 
 extern "C"
 JNIEXPORT void JNICALL
-Java_com_cz_android_ffmpeg_sample_video_VideoPlayer_nResume(JNIEnv *env, jobject thiz, jlong ref) {
+Java_com_cz_android_media_ffmpeg_video_player_VideoPlayer_nResume(JNIEnv *env, jobject thiz, jlong ref) {
     VideoPlayer* player=(VideoPlayer*)ref;
     player->resume();
 }
 
 extern "C"
 JNIEXPORT void JNICALL
-Java_com_cz_android_ffmpeg_sample_video_VideoPlayer_nStop(JNIEnv *env, jobject thiz, jlong ref) {
+Java_com_cz_android_media_ffmpeg_video_player_VideoPlayer_nStop(JNIEnv *env, jobject thiz, jlong ref) {
     VideoPlayer* player=(VideoPlayer*)ref;
     player->stop();
 }
 
 extern "C"
 JNIEXPORT void JNICALL
-Java_com_cz_android_ffmpeg_sample_video_VideoPlayer_nSeekTo(JNIEnv *env, jobject thiz, jlong ref, jlong time_stamp) {
+Java_com_cz_android_media_ffmpeg_video_player_VideoPlayer_nSeekTo(JNIEnv *env, jobject thiz, jlong ref, jlong time_stamp) {
     VideoPlayer* player=(VideoPlayer*)ref;
     player->seekTo(time_stamp);
 }
 
 extern "C"
 JNIEXPORT jlong JNICALL
-Java_com_cz_android_ffmpeg_sample_video_VideoPlayer_nGetCurrentPlayTime(JNIEnv *env, jobject thiz, jlong ref) {
+Java_com_cz_android_media_ffmpeg_video_player_VideoPlayer_nGetCurrentPlayTime(JNIEnv *env, jobject thiz, jlong ref) {
     VideoPlayer* player=(VideoPlayer*)ref;
     return player->getCurrentPlayTime();
 }
@@ -66,7 +76,7 @@ Java_com_cz_android_ffmpeg_sample_video_VideoPlayer_nGetCurrentPlayTime(JNIEnv *
 
 extern "C"
 JNIEXPORT jlong JNICALL
-Java_com_cz_android_media_ffmpeg_video_image_adapter_VideoPlayer_nGetDuration(JNIEnv *env, jobject thiz, jlong ref) {
+Java_com_cz_android_media_ffmpeg_video_player_VideoPlayer_nGetDuration(JNIEnv *env, jobject thiz, jlong ref) {
     VideoPlayer* player=(VideoPlayer*)ref;
     return player->getDuration();
 }

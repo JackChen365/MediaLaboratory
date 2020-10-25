@@ -26,23 +26,24 @@ public class VideoPlayer {
         System.loadLibrary("avformat");
         System.loadLibrary("avfilter");
         System.loadLibrary("avdevice");
-        System.loadLibrary("video-player-lib");
+        System.loadLibrary("video-lib");
     }
     private static final int INVALID_REF=0;
 
+    private native long nAllocatePlayer();
     /**
      * load the audio file and prepare all the player resources in native.
      * Return the player pointer from native code. 0 represents success others means failed.
      * @param filePath
      * @return
      */
-    private native long nLoadFile(String filePath);
+    private native boolean nPrepare(long ref,String filePath,Surface surface);
 
     /**
      * Start play the audio.
      * @param ref
      */
-    private native void nStart(long ref,Surface surface);
+    private native void nStart(long ref);
 
     /**
      * Temporarily pause the player.
@@ -78,17 +79,17 @@ public class VideoPlayer {
      * @param filePath
      * @return
      */
-    public boolean loadFile(String filePath){
-        objectRef=nLoadFile(filePath);
-        return INVALID_REF!=objectRef;
+    public boolean prepare(String filePath,Surface surface){
+        objectRef = nAllocatePlayer();
+        return nPrepare(objectRef,filePath,surface);
     }
 
     /**
      * Start play the audio.
      */
-    public void start(Surface surface){
+    public void start(){
         assetObject();
-        nStart(objectRef,surface);
+        nStart(objectRef);
     }
 
     /**

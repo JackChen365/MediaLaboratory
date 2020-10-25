@@ -11,7 +11,7 @@ Java_com_cz_android_media_ffmpeg_audio_decode_AudioPlayer_nPrepare(JNIEnv *env, 
     const char* filePath=env->GetStringUTFChars(file_path,0);
     AudioPlayer* player=new AudioPlayer();
     //Start load the audio file. return 0 if success, the others mean failed.
-    if(player->loadFile(filePath)){
+    if(player->prepare(filePath)){
         env->ReleaseStringUTFChars(file_path,filePath);
         //Return the object pointer.
         return (jlong)player;

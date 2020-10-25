@@ -42,42 +42,42 @@ public class NativeVideoDecoder {
 
     public int getWidth(){
         if(0 == decoderRef){
-            throw new IllegalArgumentException("The decoder reference is null, Please initial the decoder with the method loadFile.");
+            throw new IllegalArgumentException("The decoder reference is null, Please initial the decoder with the method prepare.");
         }
         return nGetWidth(decoderRef);
     }
 
     public int getHeight(){
         if(0 == decoderRef){
-            throw new IllegalArgumentException("The decoder reference is null, Please initial the decoder with the method loadFile.");
+            throw new IllegalArgumentException("The decoder reference is null, Please initial the decoder with the method prepare.");
         }
         return nGetHeight(decoderRef);
     }
 
     public long getDuration(){
         if(0 == decoderRef){
-            throw new IllegalArgumentException("The decoder reference is null, Please initial the decoder with the method loadFile.");
+            throw new IllegalArgumentException("The decoder reference is null, Please initial the decoder with the method prepare.");
         }
         return nGetDuration(decoderRef);
     }
 
     public long getFrameCount(){
         if(0 == decoderRef){
-            throw new IllegalArgumentException("The decoder reference is null, Please initial the decoder with the method loadFile.");
+            throw new IllegalArgumentException("The decoder reference is null, Please initial the decoder with the method prepare.");
         }
         return nGetFrameCount(decoderRef);
     }
 
     public long fillFrame(Bitmap bitmap, int index){
         if(0 == decoderRef){
-            throw new IllegalArgumentException("The decoder reference is null, Please initial the decoder with the method loadFile.");
+            throw new IllegalArgumentException("The decoder reference is null, Please initial the decoder with the method prepare.");
         }
         return nFillFrame(decoderRef,bitmap,index);
     }
 
     public long decodeFrame(Bitmap bitmap){
         if(0 == decoderRef){
-            throw new IllegalArgumentException("The decoder reference is null, Please initial the decoder with the method loadFile.");
+            throw new IllegalArgumentException("The decoder reference is null, Please initial the decoder with the method prepare.");
         }
         return nDecodeFrame(decoderRef,bitmap);
     }

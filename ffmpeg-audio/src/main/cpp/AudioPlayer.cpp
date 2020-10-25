@@ -84,7 +84,7 @@ void AudioPlayer::readFrame(void **pcmBuffer,size_t *bufferSize) {
     }
 }
 
-bool AudioPlayer::loadFile(const char *filePath) {
+bool AudioPlayer::prepare(const char *filePath) {
     avFormatContext = avformat_alloc_context();
     //open the input file.
     if (avformat_open_input(&avFormatContext, filePath, NULL, NULL) != 0) {

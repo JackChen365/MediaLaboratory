@@ -56,7 +56,7 @@ public:
      * @param filePath
      * @return
      */
-    bool loadFile(const char* filePath);
+    bool prepare(const char* filePath);
     /**
      * Read a frame from decoder.
      * @param pcmBuffer
