@@ -2,9 +2,12 @@ package com.cz.android.media.ffmpeg.video.player;
 
 import android.content.Context;
 import android.util.AttributeSet;
+import android.util.Log;
 import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
+import android.view.ViewGroup;
+import android.view.ViewParent;
 
 import androidx.annotation.NonNull;
 
@@ -15,6 +18,7 @@ import androidx.annotation.NonNull;
  * @email bingo110@126.com
  */
 public class PlayerSurfaceView extends SurfaceView implements SurfaceHolder.Callback {
+    private static final String TAG="PlayerSurfaceView";
     private final VideoPlayer videoPlayer=new VideoPlayer();
     /**
      * If you call the function {@link #start()}, But the surface hasn't created yet.
@@ -40,7 +44,7 @@ public class PlayerSurfaceView extends SurfaceView implements SurfaceHolder.Call
     public boolean loadFile(String filePath){
         SurfaceHolder holder = getHolder();
         Surface surface = holder.getSurface();
-        return videoPlayer.prepare(filePath,surface);
+        return videoPlayer.prepare(filePath, surface);
     }
 
     /**
@@ -50,12 +54,25 @@ public class PlayerSurfaceView extends SurfaceView implements SurfaceHolder.Call
     public void start(){
         SurfaceHolder holder = getHolder();
         if(isCreating){
-            int width = videoPlayer.getWidth();
-            int height = videoPlayer.getHeight();
-            holder.setFixedSize(width,height);
-            videoPlayer.start();
+            prepareSurface(holder);
         }
         isPendingPlay = holder.isCreating();
+    }
+
+    private void prepareSurface(SurfaceHolder holder) {
+        ViewParent parent = getParent();
+        if(null!=parent){
+            int width = videoPlayer.getWidth();
+            int height = videoPlayer.getHeight();
+            ViewGroup parentView= (ViewGroup) parent;
+            ViewGroup.LayoutParams layoutParams = parentView.getLayoutParams();
+            layoutParams.width = width;
+            layoutParams.height = height;
+            parent.requestLayout();
+        }
+        Surface surface = holder.getSurface();
+        videoPlayer.prepareSurface(surface);
+        videoPlayer.start();
     }
 
     public void pause(){
@@ -100,24 +117,24 @@ public class PlayerSurfaceView extends SurfaceView implements SurfaceHolder.Call
 
     @Override
     public void surfaceCreated(@NonNull SurfaceHolder surfaceHolder) {
+        Log.i(TAG,"surfaceCreated:"+isPendingPlay);
         isCreating = true;
         if(isPendingPlay){
             isPendingPlay = false;
-            int width = videoPlayer.getWidth();
-            int height = videoPlayer.getHeight();
-            surfaceHolder.setFixedSize(width,height);
-            videoPlayer.start();
+            prepareSurface(surfaceHolder);
         }
     }
 
     @Override
     public void surfaceChanged(@NonNull SurfaceHolder surfaceHolder, int format, int width,int height) {
-
+        Log.i(TAG,"surfaceChanged");
     }
 
     @Override
     public void surfaceDestroyed(@NonNull SurfaceHolder surfaceHolder) {
         isCreating = false;
+        videoPlayer.surfaceDestroy();
+        Log.i(TAG,"surfaceDestroyed");
     }
 
     @Override

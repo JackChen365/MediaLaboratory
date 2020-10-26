@@ -243,7 +243,7 @@ void readFrame(){
             std::unique_lock l(mutex);
             isBeginSeeking = false;
             clearBufferedQueue();
-            int64_t audioTimeStamp = (int64_t)seekTime/1000.0/av_q2d(*audioTimeBase);
+            int64_t audioTimeStamp = (int64_t)(seekTime / 1000.0 / av_q2d(*audioTimeBase));
             currentPlayTime = audioTimeStamp;
             LOGE("readFrame seek:%lld audioSize:%d videoSize:%d",audioTimeStamp,audioQueue.size(),videoQueue.size())
             if(av_seek_frame(pFormatCtx,audio_stream_idx,audioTimeStamp,AVSEEK_FLAG_BACKWARD) < 0){

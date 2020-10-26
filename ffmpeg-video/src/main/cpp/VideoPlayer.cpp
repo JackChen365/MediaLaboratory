@@ -39,7 +39,7 @@ void VideoPlayer::setDataSource(const char *filePath) {
     this->filePath = (char*)filePath;
 }
 
-bool VideoPlayer::prepare(JNIEnv *env,jobject surface) {
+bool VideoPlayer::prepare() {
     //Before we prepare the player. We should always release the resources.
 //    releaseResources();
     //Initial all the thread resources.
@@ -169,10 +169,23 @@ bool VideoPlayer::prepare(JNIEnv *env,jobject surface) {
     //Initial the video player engine.
     videoEngine = new VideoPlayerVideoEngine();
     videoEngine->videoPlayer = this;
-    videoEngine->prepare(env,surface,videoWidth,videoHeight);
+    VIDEO_LOG_I("Preparation is done.");
+    return false;
+}
 
-    VIDEO_LOG_I("Preparation is done.\n");
-    return true;
+void VideoPlayer::prepareSurface(JNIEnv *env,jobject surface) {
+    VIDEO_LOG_I("start prepareSurface:%d",std::this_thread::get_id());
+    videoEngine->prepare(env,surface,videoWidth,videoHeight);
+    videoConsumeVar->notify_one();
+}
+
+void VideoPlayer::surfaceDestroy() {
+    videoEngine->stop();
+    std::mutex& m = *mutex;
+    std::unique_lock l(m);
+    videoConsumeVar->wait(l);
+    clearBufferQueue();
+    l.unlock();
 }
 
 void VideoPlayer::clearBufferQueue() {
@@ -218,6 +231,11 @@ void VideoPlayer::startReadFrame() {
             continue;
         }
         if(avPacket->stream_index == videoStreamIndex){
+            if(videoEngine->playerState==PLAY_STATE_STOPPED){
+                //The engine is stopped.
+                av_packet_unref(avPacket);
+                continue;
+            }
             int ret=avcodec_send_packet(videoCodecContext, avPacket);
             if (ret < 0) {
                 VIDEO_LOG_E("Video Error while sending a packet to the decoder:%s currentTime:%lld", av_err2str(ret),currentPlayTime);
@@ -277,7 +295,10 @@ void VideoPlayer::startReadFrame() {
                  avFrame->pts*1.0*av_q2d(*audioTimeBase)
             );
             std::unique_lock l(m);
-            while(playerState == PLAY_STATE_PLAYING&&0 < videoQueue->size()&&audioQueue->size()>=MAX_QUEUE_SIZE){
+            if(playerState == PLAY_STATE_STOPPED){
+                return;
+            }
+            while(0 < videoQueue->size()&&audioQueue->size()>=MAX_QUEUE_SIZE){
                 produceVar->wait(l);
             }
             AVFrame *dst = av_frame_alloc();
@@ -346,6 +367,7 @@ void VideoPlayer::fastForward() {
     int64_t currentTime = getCurrentPlayTime();
     int64_t newTimeStamp= currentTime + DEFAULT_SEEK_SHORT_TIME < duration?
                           currentTime + DEFAULT_SEEK_SHORT_TIME : duration;
+    VIDEO_LOG_I("fastForward:%lld",newTimeStamp);
     seekTo(newTimeStamp);
 }
 
@@ -354,6 +376,7 @@ void VideoPlayer::rewind() {
     int64_t currentTime = getCurrentPlayTime();
     int64_t newTimeStamp = currentTime - DEFAULT_SEEK_SHORT_TIME > 0 ?
                            currentTime - DEFAULT_SEEK_SHORT_TIME : 0;
+    VIDEO_LOG_I("rewind:%lld",newTimeStamp);
     seekTo(newTimeStamp);
 }
 
@@ -538,13 +561,14 @@ VideoPlayerVideoEngine::VideoPlayerVideoEngine(){
 VideoPlayerVideoEngine::~VideoPlayerVideoEngine() {
 }
 
-void VideoPlayerVideoEngine::prepare(JNIEnv *env,jobject surface,int32_t width,int32_t height) {
+void VideoPlayerVideoEngine::prepare(JNIEnv *env,jobject &surface,int32_t width,int32_t height) {
+    VIDEO_LOG_I("VideoPlayerVideoEngine::prepare:%d",std::this_thread::get_id());
     nativeWindow = ANativeWindow_fromSurface(env, surface);
     ANativeWindow_setBuffersGeometry(nativeWindow, width,height,WINDOW_FORMAT_RGBA_8888);
 }
 
 void VideoPlayerVideoEngine::run() {
-    AVFrame * frame=NULL;
+    AVFrame *frame=NULL;
     auto& videoQueue=*videoPlayer->videoQueue;
     auto& swsContext=*videoPlayer->swsContext;
     auto& mutex = *videoPlayer->mutex;
@@ -568,6 +592,7 @@ void VideoPlayerVideoEngine::run() {
         }
         frame = videoQueue.front();
         videoQueue.pop_front();
+        VIDEO_LOG_I("renderSurface size:%d",videoQueue.size());
         if(videoQueue.empty()){
             produceVar.notify_one();
         }
@@ -585,7 +610,6 @@ void VideoPlayerVideoEngine::run() {
             VIDEO_LOG_I("renderSurface skip:%lld",deltaMilliseconds);
             continue;
         }
-        VIDEO_LOG_I("renderSurface:%lld dts:%lld time:%lld",audioPlayTime,frame->pts,delta);
         ANativeWindow_Buffer window_buffer;
         if (ANativeWindow_lock(nativeWindow, &window_buffer, 0)) {
             return;
@@ -594,6 +618,7 @@ void VideoPlayerVideoEngine::run() {
         int dest_linesize[4] = { (int)videoPlayer->videoWidth * 4, 0, 0, 0 };
         sws_scale(&swsContext,frame->data,frame->linesize,0,videoPlayer->videoHeight,dest,dest_linesize);
         uint8_t *dst = (uint8_t *) window_buffer.bits;
+        VIDEO_LOG_I("renderSurface:%lld dts:%lld time:%lld width:%lld height:%lld",audioPlayTime,frame->pts,delta,window_buffer.width,window_buffer.height);
         int dstStride = window_buffer.stride * 4;
         int srcStride = frame->linesize[0]*4;
         for (int i = 0; i < videoPlayer->videoHeight; ++i) {
@@ -607,6 +632,7 @@ void VideoPlayerVideoEngine::run() {
 
 void VideoPlayerVideoEngine::start() {
     VIDEO_LOG_I("VideoEngine start");
+    playerState = PLAY_STATE_PLAYING;
     VideoPlayerVideoEngine* player=this;
     std::thread videoThread([player](){ player->run(); });
     videoThread.detach();
@@ -614,13 +640,15 @@ void VideoPlayerVideoEngine::start() {
 
 void VideoPlayerVideoEngine::pause() {
     VIDEO_LOG_I("VideoEngine pause");
+    playerState = PLAY_STATE_PAUSED;
 }
 
 void VideoPlayerVideoEngine::resume() {
-
+    playerState = PLAY_STATE_PLAYING;
 }
 
 void VideoPlayerVideoEngine::stop() {
-
+//    nativeWindow = NULL;
+//    playerState = PLAY_STATE_STOPPED;
 }
 

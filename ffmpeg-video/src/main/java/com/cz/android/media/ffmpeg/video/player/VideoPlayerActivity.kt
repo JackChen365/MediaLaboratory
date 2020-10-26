@@ -3,17 +3,12 @@ package com.cz.android.media.ffmpeg.video.player
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.util.Log
 import android.view.View
 import android.widget.SeekBar
 import androidx.appcompat.app.AppCompatActivity
 import com.cz.android.media.ffmpeg.video.R
 import com.cz.android.media.ffmpeg.video.utils.Util
-import kotlinx.android.synthetic.main.activity_audio_sample.*
 import kotlinx.android.synthetic.main.activity_video_player.*
-import kotlinx.android.synthetic.main.activity_video_player.pauseButton
-import kotlinx.android.synthetic.main.activity_video_player.playButton
-import kotlinx.android.synthetic.main.activity_video_player.seekBar
 import java.io.File
 import java.io.FileOutputStream
 
@@ -25,7 +20,6 @@ class VideoPlayerActivity : AppCompatActivity() {
             val seekBar = findViewById<SeekBar>(R.id.seekBar)
             seekBar.progress = currentPlayTime.toInt()
             progressText.text= Util.getStringForTime(currentPlayTime)
-            Log.i("VideoPlayerActivity","updateAction:"+currentPlayTime)
             handler.postDelayed(this, 200)
         }
     }

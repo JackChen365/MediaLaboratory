@@ -39,6 +39,10 @@ public class VideoPlayer {
      */
     private native boolean nPrepare(long ref,String filePath,Surface surface);
 
+    private native void nPrepareWindow(long ref,Surface surface);
+
+    private native void nSurfaceDestroy(long ref);
+
     /**
      * Start play the audio.
      * @param ref
@@ -96,6 +100,16 @@ public class VideoPlayer {
     public boolean prepare(String filePath,Surface surface){
         objectRef = nAllocatePlayer();
         return nPrepare(objectRef,filePath,surface);
+    }
+
+    public void prepareSurface(Surface surface){
+        assetObject();
+        nPrepareWindow(objectRef,surface);
+    }
+
+    public void surfaceDestroy(){
+        assetObject();
+        nSurfaceDestroy(objectRef);
     }
 
     /**
@@ -157,7 +171,7 @@ public class VideoPlayer {
 
     public void rewind(){
         assetObject();
-        nRelease(objectRef);
+        nRewind(objectRef);
     }
 
     public void fastForward(){

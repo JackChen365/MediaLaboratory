@@ -15,20 +15,36 @@ Java_com_cz_android_media_ffmpeg_video_player_VideoPlayer_nAllocatePlayer(JNIEnv
 extern "C"
 JNIEXPORT jboolean JNICALL
 Java_com_cz_android_media_ffmpeg_video_player_VideoPlayer_nPrepare(JNIEnv *env, jobject thiz,
-                                                                   jlong ref, jstring file_path,
-                                                                   jobject surface) {
+                                                                   jlong ref, jstring file_path,jobject surface) {
     VideoPlayer* player=(VideoPlayer*)ref;
     const char* filePath=env->GetStringUTFChars(file_path,0);
     //Start load the audio file. return 0 if success, the others mean failed.
     player->setDataSource(filePath);
-    if(player->prepare(env,surface)){
+    if(player->prepare()){
         env->ReleaseStringUTFChars(file_path,filePath);
         //Return the object pointer.
         return true;
     }
     env->ReleaseStringUTFChars(file_path,filePath);
     //Return zero means load failed.
-    return false;
+    return true;
+}
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_cz_android_media_ffmpeg_video_player_VideoPlayer_nPrepareWindow(JNIEnv *env, jobject thiz,
+                                                                          jlong ref,
+                                                                          jobject surface) {
+    VideoPlayer* player=(VideoPlayer*)ref;
+    player->prepareSurface(env,surface);
+}
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_cz_android_media_ffmpeg_video_player_VideoPlayer_nSurfaceDestroy(JNIEnv *env, jobject thiz,
+                                                                          jlong ref) {
+    VideoPlayer* player=(VideoPlayer*)ref;
+    player->surfaceDestroy();
 }
 
 extern "C"

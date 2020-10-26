@@ -30,7 +30,7 @@ extern "C" {
 #define DEFAULT_SEEK_SHORT_TIME 5000
 
 #define INVALID_STREAM_INDEX -1
-#define MAX_QUEUE_SIZE 5
+#define MAX_QUEUE_SIZE 1
 
 #define PLAY_STATE_IDLE 0
 #define PLAY_STATE_PLAYING 1
@@ -114,7 +114,11 @@ public:
      * For a player before it releases the resources. It only needs to be prepared for once.
      * @return if return true means prepare success other means failed.
      */
-    bool prepare(JNIEnv *env,jobject surface);
+    bool prepare();
+
+    void prepareSurface(JNIEnv *env,jobject surface);
+
+    void surfaceDestroy();
 
     /**
      * Initial the data source.
@@ -229,14 +233,19 @@ public:
 //------------------------------------------------------------------------------
 class VideoPlayerVideoEngine{
 private:
-    ANativeWindow *nativeWindow=NULL;
 public:
     VideoPlayer* videoPlayer=NULL;
+    ANativeWindow *nativeWindow=NULL;
+    /**
+     * Because our video engine will destroy when it hides.
+     * So This engine has its own play state which is different from the ViewPlayer's play state.
+     */
+    std::atomic_int playerState = PLAY_STATE_IDLE;
 
     VideoPlayerVideoEngine();
     ~VideoPlayerVideoEngine();
 
-    void prepare(JNIEnv *env,jobject surface,int32_t width,int32_t height);
+    void prepare(JNIEnv *env,jobject &surface,int32_t width,int32_t height);
 
     void run();
 
