@@ -30,6 +30,11 @@ class VideoFrameAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
         return object :RecyclerView.ViewHolder(layoutInflater.inflate(R.layout.image_layout,parent,false)){}
     }
 
+    override fun onDetachedFromRecyclerView(recyclerView: RecyclerView) {
+        decoder.recycle()
+        super.onDetachedFromRecyclerView(recyclerView)
+    }
+
     override fun getItemCount(): Int {
         return itemCount
     }

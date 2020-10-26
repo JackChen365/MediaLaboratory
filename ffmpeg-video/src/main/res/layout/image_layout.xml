@@ -1,21 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="240dp"
-    android:layout_height="wrap_content"
-    android:layout_gravity="center">
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:layout_marginLeft="@dimen/halfPageMargin"
+    android:layout_marginRight="@dimen/halfPageMargin"
+    android:gravity="center">
 
     <com.cz.android.media.ffmpeg.video.view.ScaleImageView
         android:id="@+id/imageView"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"/>
+        android:layout_height="match_parent"
+        android:layout_gravity="center"/>
 
     <TextView
         android:id="@+id/positionText"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_gravity="center"
         android:textColor="@android:color/white"
+        android:layout_gravity="center"
         android:textStyle="bold"
         android:textSize="48sp"/>
 

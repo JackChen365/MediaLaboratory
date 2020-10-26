@@ -1,4 +1,4 @@
-package com.cz.android.media.ffmpeg.video.view;
+package com.cz.android.media.ffmpeg.video.test;
 
 import android.content.Context;
 import android.graphics.Bitmap;
@@ -15,7 +15,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class VideoView extends View {
-    private static final String TAG="GifView";
     private NativeVideoDecoder decoder=new NativeVideoDecoder();
     private Matrix matrix=new Matrix();
     private Bitmap currentFrame;
@@ -29,14 +28,20 @@ public class VideoView extends View {
         public void run() {
             long st = SystemClock.uptimeMillis();
             while(isRunning){
-                long dst;
-                if((dst=decoder.decodeFrame(currentFrame)) < 0){
+                decoder.decodeFrame(currentFrame);
+                long dst=decoder.getCurrentDuration();
+                if(dst < 0){
                     break;
                 }
                 long time=SystemClock.uptimeMillis()-st;
                 long delta=dst - time > 0? dst-time:0;
-                SystemClock.sleep(delta);
-                postInvalidate();
+                if(delta > 1000){
+                    //Need to synchronize the time stamp and skip
+                    st = SystemClock.uptimeMillis() - dst;
+                } else {
+                    SystemClock.sleep(delta);
+                    invalidate();
+                }
             }
         }
     };
@@ -63,6 +68,10 @@ public class VideoView extends View {
         }
     }
 
+    public long getDuration(){
+        return decoder.getDuration();
+    }
+
     public long getFrameCount(){
         return decoder.getFrameCount();
     }
@@ -70,9 +79,8 @@ public class VideoView extends View {
     public void decodeFrame(int index){
         if(decoder.isValid()){
             frameIndex = index;
-            if(0 <= decoder.fillFrame(currentFrame,frameIndex)){
-                invalidate();
-            }
+            decoder.fillFrame(currentFrame,frameIndex);
+            invalidate();
         }
     }
 
@@ -90,6 +98,13 @@ public class VideoView extends View {
         }
     }
 
+    public long getCurrentDuration(){
+        if(decoder.isValid()){
+            return decoder.getCurrentDuration();
+        }
+        return 0;
+    }
+
     public void loadImage(String filePath) {
         loadImage(new File(filePath));
     }
@@ -101,7 +116,6 @@ public class VideoView extends View {
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
         super.onMeasure(widthMeasureSpec,heightMeasureSpec);
-        int measuredWidth = getMeasuredWidth();
         if(decoder.isValid()){
             int width = decoder.getWidth();
             int height = decoder.getHeight();
@@ -111,6 +125,13 @@ public class VideoView extends View {
                 setMeasuredDimension(width, height);
             }
         }
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        stopAnimation();
+        decoder.recycle();
+        super.onDetachedFromWindow();
     }
 
     @Override

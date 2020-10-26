@@ -1,56 +1,96 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".MainActivity">
+    android:orientation="vertical"
+    android:background="@android:color/black">
+
+    <com.cz.android.media.ffmpeg.video.player.PlayerSurfaceView
+        android:id="@+id/surfaceView"
+        android:layout_width="match_parent"
+        android:layout_height="320dp"
+        android:layout_gravity="center_horizontal" />
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:layout_gravity="center_horizontal">
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_gravity="bottom"
+        android:paddingTop="12dp"
+        android:paddingBottom="12dp">
 
-        <com.cz.android.media.ffmpeg.video.player.PlayerSurfaceView
-            android:id="@+id/videoView"
+        <TextView
+            android:id="@+id/progressText"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_gravity="center_horizontal" />
+            android:padding="12dp"
+            android:textSize="16sp"
+            android:text="00:00"
+            android:textColor="@android:color/white"/>
 
         <SeekBar
             android:id="@+id/seekBar"
-            android:layout_width="match_parent"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"/>
+            android:layout_weight="1"/>
+
+        <TextView
+            android:id="@+id/durationText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:padding="12dp"
+            android:textSize="16sp"
+            android:text="00:00"
+            android:textColor="@android:color/white" />
 
     </LinearLayout>
 
     <LinearLayout
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_gravity="right|bottom"
-        android:orientation="horizontal">
+        android:orientation="horizontal"
+        android:gravity="center_horizontal">
 
-        <Button
+        <ImageView
+            android:id="@+id/rewindButton"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:padding="12dp"
+            android:layout_marginRight="48dp"
+            android:src="@mipmap/ic_skip_previous_white"
+            android:background="@drawable/player_button_selector"/>
+
+        <ImageView
             android:id="@+id/playButton"
-            android:text="play"
-            android:textAllCaps="false"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content" />
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:padding="12dp"
+            android:src="@mipmap/ic_play_arrow_white"
+            android:background="@drawable/player_button_selector"/>
 
-        <Button
+
+        <ImageView
             android:id="@+id/pauseButton"
-            android:text="pause"
-            android:textAllCaps="false"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content" />
-        <Button
-            android:id="@+id/resumeButton"
-            android:text="resume"
-            android:textAllCaps="false"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content" />
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:padding="12dp"
+            android:visibility="gone"
+            android:src="@mipmap/ic_stop_white"
+            android:background="@drawable/player_button_selector"/>
+
+
+        <ImageView
+            android:id="@+id/fastForwardButton"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:padding="12dp"
+            android:layout_marginLeft="48dp"
+            android:src="@mipmap/ic_skip_next_white"
+            android:background="@drawable/player_button_selector"/>
+
 
     </LinearLayout>
 
-</FrameLayout>
+</LinearLayout>

@@ -8,8 +8,8 @@ import android.view.Surface;
  * This is a jni bright work with audio-lib.
  * The class load all the FFMPEG library and the Audio-lib library.
  * All the native methods are private scope. You could be able to call public method I support.
- * @see #loadFile(String) load the audio file and prepare all the player resources.
- * @see #start(Surface) start play the audio
+ * @see #prepare(String, Surface) load the audio file and prepare all the player resources.
+ * @see #start() start play the audio
  * @see #pause() Temporarily pause the player.
  * @see #resume()  resume from the pause state and continue to play.
  * @see #stop() Stop play and releaseResources all the player resources.
@@ -63,16 +63,30 @@ public class VideoPlayer {
      */
     private native void nStop(long ref);
 
+    private native int nGetWidth(long ref);
+
+    private native int nGetHeight(long ref);
+
     private native long nGetDuration(long ref);
 
     private native long nGetCurrentPlayTime(long ref);
 
     private native void nSeekTo(long ref,long timeStamp);
 
+    private native void nRewind(long ref);
+
+    private native void nFastForward(long ref);
+
+    private native void nRelease(long ref);
+
     /**
      * The player object pointer from Native code.
      */
     private long objectRef;
+
+    public boolean isValid(){
+        return objectRef != INVALID_REF;
+    }
 
     /**
      * load the audio file and prepare all the player resources in native.
@@ -116,6 +130,16 @@ public class VideoPlayer {
         nStop(objectRef);
     }
 
+    public int getWidth(){
+        assetObject();
+        return nGetWidth(objectRef);
+    }
+
+    public int getHeight(){
+        assetObject();
+        return nGetHeight(objectRef);
+    }
+
     public long getDuration(){
         assetObject();
         return nGetDuration(objectRef);
@@ -129,6 +153,20 @@ public class VideoPlayer {
     public void seekTo(long timeStamp){
         assetObject();
         nSeekTo(objectRef,timeStamp);
+    }
+
+    public void rewind(){
+        assetObject();
+        nRelease(objectRef);
+    }
+
+    public void fastForward(){
+        assetObject();
+        nFastForward(objectRef);
+    }
+
+    public void release(){
+        nRelease(objectRef);
     }
 
     private void assetObject(){

@@ -23,11 +23,13 @@ public class NativeVideoDecoder {
 
     private native long nGetDuration(long ref);
 
+    private native long nGetCurrentDuration(long ref);
+
     private native int nGetFrameCount(long ref);
 
-    private native long nDecodeFrame(long ref, Bitmap bitmap);
+    private native void nDecodeFrame(long ref, Bitmap bitmap);
 
-    private native long nFillFrame(long ref, Bitmap bitmap, int index);
+    private native void nFillFrame(long ref, Bitmap bitmap, int index);
 
     private native void nRecycle(long ref);
 
@@ -68,18 +70,25 @@ public class NativeVideoDecoder {
         return nGetFrameCount(decoderRef);
     }
 
-    public long fillFrame(Bitmap bitmap, int index){
+    public void fillFrame(Bitmap bitmap, int index){
         if(0 == decoderRef){
             throw new IllegalArgumentException("The decoder reference is null, Please initial the decoder with the method prepare.");
         }
-        return nFillFrame(decoderRef,bitmap,index);
+        nFillFrame(decoderRef,bitmap,index);
     }
 
-    public long decodeFrame(Bitmap bitmap){
+    public void decodeFrame(Bitmap bitmap){
         if(0 == decoderRef){
             throw new IllegalArgumentException("The decoder reference is null, Please initial the decoder with the method prepare.");
         }
-        return nDecodeFrame(decoderRef,bitmap);
+        nDecodeFrame(decoderRef,bitmap);
+    }
+
+    public long getCurrentDuration(){
+        if(0 == decoderRef){
+            throw new IllegalArgumentException("The decoder reference is null, Please initial the decoder with the method prepare.");
+        }
+        return nGetCurrentDuration(decoderRef);
     }
 
     public void recycle(){

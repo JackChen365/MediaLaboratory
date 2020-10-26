@@ -3,6 +3,9 @@ package com.cz.android.media.ffmpeg.video.image
 import android.os.Bundle
 import android.widget.SeekBar
 import androidx.appcompat.app.AppCompatActivity
+import androidx.recyclerview.widget.RecyclerView
+import androidx.viewpager2.widget.MarginPageTransformer
+import androidx.viewpager2.widget.ViewPager2
 import com.cz.android.media.ffmpeg.video.R
 import com.cz.android.media.ffmpeg.video.image.adapter.VideoFrameAdapter
 import com.cz.android.media.ffmpeg.video.utils.Util
@@ -15,15 +18,33 @@ class VideoFrameGalleryActivity : AppCompatActivity() {
         val tempImageFile = Util.copyTempFileAsset(this,"sample2.mp4")
         val videoFrameAdapter = VideoFrameAdapter(this, tempImageFile.absolutePath)
         viewPager.adapter = VideoFrameAdapter(this,tempImageFile.absolutePath)
-        viewPager.setPageTransformer { page, fraction ->
-            page.scaleX = 0.9f+0.1f*fraction
-            page.scaleY = 0.9f+0.1f*fraction
-            page.alpha=0.6f+0.4f*fraction
+        viewPager.setPageTransformer { page, position ->
+            val absPos = Math.abs(position)
+            page.alpha = 0.9f+0.1f*(1 - absPos)
+            page.scaleY = 0.9f+0.1f*(1 - absPos)
+            page.scaleY = 0.9f+0.1f*(1 - absPos)
         }
+        val recyclerView = viewPager.getChildAt(0) as RecyclerView
+        recyclerView.apply {
+            val padding = resources.getDimensionPixelOffset(R.dimen.halfPageMargin) +
+                    resources.getDimensionPixelOffset(R.dimen.peekOffset)
+            // setting padding on inner RecyclerView puts overscroll effect in the right place
+            setPadding(padding, 0, padding, 0)
+            clipToPadding = false
+        }
+
+        viewPager.registerOnPageChangeCallback(object : ViewPager2.OnPageChangeCallback() {
+            override fun onPageSelected(position: Int) {
+                super.onPageSelected(position)
+                seekBar.progress = position
+            }
+        })
         seekBar.max = videoFrameAdapter.itemCount
         seekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener{
             override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
-                viewPager.currentItem = progress
+                if(fromUser){
+                    viewPager.setCurrentItem(progress,false)
+                }
             }
 
             override fun onStartTrackingTouch(seekBar: SeekBar) {

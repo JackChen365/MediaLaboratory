@@ -156,7 +156,7 @@ public:
     /**
      * Release all the resources.
      */
-    void releaseResources();
+    void release();
 
     void rewind();
 

@@ -80,3 +80,43 @@ Java_com_cz_android_media_ffmpeg_video_player_VideoPlayer_nGetDuration(JNIEnv *e
     VideoPlayer* player=(VideoPlayer*)ref;
     return player->getDuration();
 }
+
+extern "C"
+JNIEXPORT jint JNICALL
+Java_com_cz_android_media_ffmpeg_video_player_VideoPlayer_nGetWidth(JNIEnv *env, jobject thiz,
+                                                                    jlong ref) {
+    VideoPlayer* player=(VideoPlayer*)ref;
+    return player->getWidth();
+}
+
+extern "C"
+JNIEXPORT jint JNICALL
+Java_com_cz_android_media_ffmpeg_video_player_VideoPlayer_nGetHeight(JNIEnv *env, jobject thiz,
+                                                                     jlong ref) {
+    VideoPlayer* player=(VideoPlayer*)ref;
+    return player->getHeight();
+}
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_cz_android_media_ffmpeg_video_player_VideoPlayer_nRelease(JNIEnv *env, jobject thiz,
+                                                                   jlong ref) {
+    VideoPlayer* player=(VideoPlayer*)ref;
+    player->release();
+}
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_cz_android_media_ffmpeg_video_player_VideoPlayer_nFastForward(JNIEnv *env, jobject thiz,
+                                                                       jlong ref) {
+    VideoPlayer* player=(VideoPlayer*)ref;
+    player->fastForward();
+}
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_cz_android_media_ffmpeg_video_player_VideoPlayer_nRewind(JNIEnv *env, jobject thiz,
+                                                                  jlong ref) {
+    VideoPlayer* player=(VideoPlayer*)ref;
+    player->rewind();
+}

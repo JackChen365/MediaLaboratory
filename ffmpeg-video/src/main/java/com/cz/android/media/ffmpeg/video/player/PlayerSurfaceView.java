@@ -50,6 +50,9 @@ public class PlayerSurfaceView extends SurfaceView implements SurfaceHolder.Call
     public void start(){
         SurfaceHolder holder = getHolder();
         if(isCreating){
+            int width = videoPlayer.getWidth();
+            int height = videoPlayer.getHeight();
+            holder.setFixedSize(width,height);
             videoPlayer.start();
         }
         isPendingPlay = holder.isCreating();
@@ -79,11 +82,30 @@ public class PlayerSurfaceView extends SurfaceView implements SurfaceHolder.Call
         videoPlayer.seekTo(timeStamp);
     }
 
+    public boolean isValid(){
+        return videoPlayer.isValid();
+    }
+
+    public void fastForward(){
+        videoPlayer.fastForward();
+    }
+
+    public void rewind(){
+        videoPlayer.rewind();
+    }
+
+    public void release(){
+        videoPlayer.release();
+    }
+
     @Override
     public void surfaceCreated(@NonNull SurfaceHolder surfaceHolder) {
         isCreating = true;
         if(isPendingPlay){
             isPendingPlay = false;
+            int width = videoPlayer.getWidth();
+            int height = videoPlayer.getHeight();
+            surfaceHolder.setFixedSize(width,height);
             videoPlayer.start();
         }
     }

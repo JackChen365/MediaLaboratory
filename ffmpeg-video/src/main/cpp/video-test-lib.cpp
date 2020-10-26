@@ -44,6 +44,7 @@ public:
         timeBase=NULL;
         width = height = 0;
         duration = 0;
+        currentPlayTime = 0;
         videoStreamIndex = -1;
     }
 
@@ -153,7 +154,16 @@ extern "C"
 JNIEXPORT jlong JNICALL
 Java_com_cz_android_media_ffmpeg_video_test_NativeVideoDecoder_nGetDuration(JNIEnv *env, jobject thiz, jlong ref) {
     VideoReaderState *videoReaderState=(VideoReaderState *)ref;
-    return videoReaderState->duration;
+    return videoReaderState->duration * av_q2d(*videoReaderState->timeBase)*1000;
+}
+
+extern "C"
+JNIEXPORT jlong JNICALL
+Java_com_cz_android_media_ffmpeg_video_test_NativeVideoDecoder_nGetCurrentDuration(JNIEnv *env,
+                                                                                   jobject thiz,
+                                                                                   jlong ref) {
+    VideoReaderState *videoReaderState=(VideoReaderState *)ref;
+    return videoReaderState->currentPlayTime*av_q2d(*videoReaderState->timeBase)* 1000;
 }
 
 extern "C"
@@ -165,44 +175,33 @@ Java_com_cz_android_media_ffmpeg_video_test_NativeVideoDecoder_nGetFrameCount(JN
     return totalTime*av_q2d(*videoReaderState->averageFrameRate);
 }
 
-private long decodeFrameInternal(JNIEnv *env, jlong ref,jobject jbitmap);
+private void decodeFrameInternal(JNIEnv *env, jlong ref,jobject jbitmap);
 
 extern "C"
-JNIEXPORT jlong JNICALL
+JNIEXPORT void JNICALL
 Java_com_cz_android_media_ffmpeg_video_test_NativeVideoDecoder_nDecodeFrame(JNIEnv *env, jobject thiz, jlong ref, jobject jbitmap){
-    return decodeFrameInternal(env,ref,jbitmap);
+    decodeFrameInternal(env,ref,jbitmap);
 }
 
 extern "C"
-JNIEXPORT jlong JNICALL
+JNIEXPORT void JNICALL
 Java_com_cz_android_media_ffmpeg_video_test_NativeVideoDecoder_nFillFrame(JNIEnv *env, jobject thiz, jlong ref, jobject jbitmap, jint index) {
     VideoReaderState *pVideoReaderState=(VideoReaderState *)ref;
     // Unpack members of state
     AVFormatContext* pFormatContext=pVideoReaderState->avFormatContext;
     uint32_t videoStreamIndex=pVideoReaderState->videoStreamIndex;
     // Calculate the dst by frame index.
-    double av_d2q=1.0/av_q2d(*pVideoReaderState->averageFrameRate);
-    int64_t timeStamp=(av_d2q * index)*pVideoReaderState->timeBase->den;
+    double timeStampValue= 1.0 / av_q2d(*pVideoReaderState->averageFrameRate);
+    int64_t timeStamp= (timeStampValue * index) * pVideoReaderState->timeBase->den;
     LOG_I("seek frame to:%d timeStamp:%d.",index,timeStamp);
-    if(pVideoReaderState->currentPlayTime<timeStamp){
-        if(0 > av_seek_frame(pFormatContext,videoStreamIndex,timeStamp,AVSEEK_FLAG_ANY)){
-            //seek failed.
-            LOG_E("seek failed:%d.",index);
-        }
-    } else if(pVideoReaderState->currentPlayTime>timeStamp){
-        if(0 > av_seek_frame(pFormatContext,videoStreamIndex,timeStamp,AVSEEK_FLAG_BACKWARD)){
-            //seek failed.
-            LOG_E("seek failed:%d.",index);
-        }
-        if(0 > av_seek_frame(pFormatContext,videoStreamIndex,timeStamp,AVSEEK_FLAG_ANY)){
-            //seek failed.
-            LOG_E("seek failed:%d.",index);
-        }
+    if(0 > av_seek_frame(pFormatContext,videoStreamIndex,timeStamp,AVSEEK_FLAG_ANY)){
+        //seek failed.
+        LOG_E("seek failed:%d.",index);
     }
-    return decodeFrameInternal(env,ref,jbitmap);
+    decodeFrameInternal(env,ref,jbitmap);
 }
 
-private long decodeFrameInternal(JNIEnv *env, jlong ref,jobject jbitmap){
+private void decodeFrameInternal(JNIEnv *env, jlong ref,jobject jbitmap){
     VideoReaderState *pVideoReaderState=(VideoReaderState *)ref;
     // Unpack members of state
     AVFormatContext* pFormatContext=pVideoReaderState->avFormatContext;
@@ -213,7 +212,6 @@ private long decodeFrameInternal(JNIEnv *env, jlong ref,jobject jbitmap){
     AVPacket *pPacket = pVideoReaderState->avPacket;
     auto width=pVideoReaderState->width;
     auto height=pVideoReaderState->height;
-    pVideoReaderState->duration;
     while(av_read_frame(pFormatContext, pPacket) >= 0) {
         if (pPacket->stream_index != videoStreamIndex) {
             av_packet_unref(pPacket);
@@ -223,17 +221,17 @@ private long decodeFrameInternal(JNIEnv *env, jlong ref,jobject jbitmap){
         int ret = avcodec_send_packet(pCodecContext, pPacket);
         if (ret < 0) {
             LOG_E("Error while sending a packet to the decoder:%s", av_err2str(ret));
-            return -1;
+            return;
         }
         ret = avcodec_receive_frame(pCodecContext, pFrame);
         if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
             continue;
         } else if (ret < 0) {
             LOG_E("Error while receiving a frame from the decoder:%s", av_err2str(ret));
-            return -1;
+            return;
         }
         if (0 <= ret) {
-            LOG_I("Frame %c (%d) pts %d dts %d key_frame %d [coded_picture_number %d, display_picture_number %d]",
+            LOG_I("Frame %c (%d) pts %lld dts %lld key_frame %d [coded_picture_number %d, display_picture_number %d]",
                   av_get_picture_type_char(pFrame->pict_type),
                   pCodecContext->frame_number,
                   pFrame->pts,
@@ -242,6 +240,7 @@ private long decodeFrameInternal(JNIEnv *env, jlong ref,jobject jbitmap){
                   pFrame->coded_picture_number,
                   pFrame->display_picture_number
             );
+            LOG_I("Frame pts:%lld", pFrame->pts * av_q2d(*timeBase));
         }
         pVideoReaderState->currentPlayTime = pFrame->pts;
         av_packet_unref(pPacket);
@@ -253,7 +252,7 @@ private long decodeFrameInternal(JNIEnv *env, jlong ref,jobject jbitmap){
                                                              SWS_BILINEAR, NULL, NULL, NULL);
         if(!pVideoReaderState->swsScalerContext){
             LOG_E("Couldn't initialize the SWS pVideoReaderState!");
-            return -1;
+            return;
         }
     }
     if(!pVideoReaderState->frameData){
@@ -265,14 +264,11 @@ private long decodeFrameInternal(JNIEnv *env, jlong ref,jobject jbitmap){
 
     void* addrPtr;
     if(ANDROID_BITMAP_RESULT_SUCCESS!=AndroidBitmap_lockPixels(env,jbitmap,&addrPtr)){
-        return ANDROID_BITMAP_RESULT_JNI_EXCEPTION;
+        return;
     }
     uint32_t *bitmapPixels=(uint32_t*)addrPtr;
     memcpy(bitmapPixels,pVideoReaderState->frameData,pVideoReaderState->width*pVideoReaderState->height*4);
     AndroidBitmap_unlockPixels(env,jbitmap);
-
-    //Calculate the time.
-    return pFrame->pts*(av_q2d(*timeBase)) * 1000;
 }
 
 extern "C"

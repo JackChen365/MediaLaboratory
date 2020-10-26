@@ -342,25 +342,19 @@ void VideoPlayer::stop() {
 }
 
 void VideoPlayer::fastForward() {
-    isBeginSeeking = true;
-    //Total duration which is millisecond.
-    int64_t duration = getDuration();
     //Current millisecond;
-    int64_t currentPlayTime = getCurrentPlayTime();
-    int64_t newTimeStamp= currentPlayTime + DEFAULT_SEEK_SHORT_TIME < duration?
-                          currentPlayTime + DEFAULT_SEEK_SHORT_TIME : duration;
-    seekTimeStamp = (newTimeStamp/1000)*(audioTimeBase->den/audioTimeBase->num);
-    VIDEO_LOG_I("fastForward:%lld currentPlayTime:%lld duration:%lld",newTimeStamp,currentPlayTime,duration);
+    int64_t currentTime = getCurrentPlayTime();
+    int64_t newTimeStamp= currentTime + DEFAULT_SEEK_SHORT_TIME < duration?
+                          currentTime + DEFAULT_SEEK_SHORT_TIME : duration;
+    seekTo(newTimeStamp);
 }
 
 void VideoPlayer::rewind() {
-    isBeginSeeking = true;
     //Current millisecond;
-    int64_t currentPlayTime = getCurrentPlayTime();
-    int64_t newTimeStamp = currentPlayTime - DEFAULT_SEEK_SHORT_TIME > 0?
-                           currentPlayTime - DEFAULT_SEEK_SHORT_TIME : 0;
-    seekTimeStamp = (newTimeStamp/1000)*(audioTimeBase->den/audioTimeBase->num);
-    VIDEO_LOG_I("rewind:%lld",newTimeStamp);
+    int64_t currentTime = getCurrentPlayTime();
+    int64_t newTimeStamp = currentTime - DEFAULT_SEEK_SHORT_TIME > 0 ?
+                           currentTime - DEFAULT_SEEK_SHORT_TIME : 0;
+    seekTo(newTimeStamp);
 }
 
 int32_t VideoPlayer::getWidth() {
@@ -371,7 +365,7 @@ int32_t VideoPlayer::getHeight() {
     return videoHeight;
 }
 
-void VideoPlayer::releaseResources() {
+void VideoPlayer::release() {
     av_packet_free(&avPacket);
     av_frame_free(&avFrame);
     swr_free(&swrContext);
