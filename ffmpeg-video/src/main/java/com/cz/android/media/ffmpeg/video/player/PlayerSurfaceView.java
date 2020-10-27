@@ -133,7 +133,7 @@ public class PlayerSurfaceView extends SurfaceView implements SurfaceHolder.Call
     @Override
     public void surfaceDestroyed(@NonNull SurfaceHolder surfaceHolder) {
         isCreating = false;
-        videoPlayer.surfaceDestroy();
+//        videoPlayer.destroySurface();
         Log.i(TAG,"surfaceDestroyed");
     }
 

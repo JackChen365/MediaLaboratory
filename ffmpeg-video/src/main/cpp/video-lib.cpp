@@ -41,10 +41,10 @@ Java_com_cz_android_media_ffmpeg_video_player_VideoPlayer_nPrepareWindow(JNIEnv 
 
 extern "C"
 JNIEXPORT void JNICALL
-Java_com_cz_android_media_ffmpeg_video_player_VideoPlayer_nSurfaceDestroy(JNIEnv *env, jobject thiz,
+Java_com_cz_android_media_ffmpeg_video_player_VideoPlayer_nDestroySurface(JNIEnv *env, jobject thiz,
                                                                           jlong ref) {
     VideoPlayer* player=(VideoPlayer*)ref;
-    player->surfaceDestroy();
+    player->destroySurface();
 }
 
 extern "C"
@@ -118,7 +118,7 @@ JNIEXPORT void JNICALL
 Java_com_cz_android_media_ffmpeg_video_player_VideoPlayer_nRelease(JNIEnv *env, jobject thiz,
                                                                    jlong ref) {
     VideoPlayer* player=(VideoPlayer*)ref;
-    player->release();
+    delete player;
 }
 
 extern "C"

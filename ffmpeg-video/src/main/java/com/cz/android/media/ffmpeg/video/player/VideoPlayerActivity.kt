@@ -58,6 +58,12 @@ class VideoPlayerActivity : AppCompatActivity() {
             surfaceView.rewind()
         }
 
+        testButton.setOnClickListener {
+            handler.removeCallbacks(updateAction)
+            surfaceView.stop()
+            surfaceView.release()
+        }
+
     }
 
     private fun initialVideoPlayer() {
@@ -104,24 +110,28 @@ class VideoPlayerActivity : AppCompatActivity() {
         return file
     }
 
-    override fun onResume() {
-        super.onResume()
-        if(surfaceView.isValid){
-            surfaceView.resume()
-            updatePlayVisibility()
-        }
-    }
-
-    override fun onPause() {
-        super.onPause()
-        if(surfaceView.isValid){
-            surfaceView.pause()
-            updateStopVisibility()
-        }
-    }
-
-    override fun onDestroy() {
-        surfaceView.release()
-        super.onDestroy()
-    }
+//    override fun onResume() {
+//        super.onResume()
+//        if(surfaceView.isValid){
+//            surfaceView.resume()
+//            updatePlayVisibility()
+//        }
+//    }
+//
+//    override fun onPause() {
+//        super.onPause()
+//        if(surfaceView.isValid){
+//            surfaceView.pause()
+//            updateStopVisibility()
+//        }
+//    }
+//
+//    override fun onDestroy() {
+//        if(surfaceView.isValid){
+//            handler.removeCallbacks(updateAction)
+//            surfaceView.stop()
+////            surfaceView.release()
+//        }
+//        super.onDestroy()
+//    }
 }

@@ -22,6 +22,7 @@ VideoPlayer::VideoPlayer() {
 }
 
 VideoPlayer::~VideoPlayer() {
+
     av_frame_free(&avFrame);
     av_packet_free(&avPacket);
     swr_free(&swrContext);
@@ -33,6 +34,22 @@ VideoPlayer::~VideoPlayer() {
     delete videoTimeBase;
     delete[] audioBuffer;
     delete[] videoBuffer;
+
+    delete audioEngine;
+    delete videoEngine;
+    delete mutex;
+    delete audioConsumeVar;
+    delete videoConsumeVar;
+    delete playCondition;
+    delete produceVar;
+
+    clearBufferQueue();
+    delete audioQueue;
+    delete videoQueue;
+
+    //The player file
+    delete[] filePath;
+    VIDEO_LOG_I("release all the resources.");
 }
 
 void VideoPlayer::setDataSource(const char *filePath) {
@@ -179,13 +196,11 @@ void VideoPlayer::prepareSurface(JNIEnv *env,jobject surface) {
     videoConsumeVar->notify_one();
 }
 
-void VideoPlayer::surfaceDestroy() {
+void VideoPlayer::destroySurface() {
+    mutex->lock();
     videoEngine->stop();
-    std::mutex& m = *mutex;
-    std::unique_lock l(m);
-    videoConsumeVar->wait(l);
     clearBufferQueue();
-    l.unlock();
+    mutex->unlock();
 }
 
 void VideoPlayer::clearBufferQueue() {
@@ -296,10 +311,17 @@ void VideoPlayer::startReadFrame() {
             );
             std::unique_lock l(m);
             if(playerState == PLAY_STATE_STOPPED){
-                return;
+                break;
             }
-            while(0 < videoQueue->size()&&audioQueue->size()>=MAX_QUEUE_SIZE){
-                produceVar->wait(l);
+            if(videoEngine->playerState==PLAY_STATE_PLAYING){
+                while(0 < videoQueue->size()&&audioQueue->size()>=MAX_QUEUE_SIZE){
+                    produceVar->wait(l);
+                }
+            } else {
+                //If the video surface is destroyed. We do not have to wait for the video queue.
+                while(audioQueue->size()>=MAX_QUEUE_SIZE){
+                    produceVar->wait(l);
+                }
             }
             AVFrame *dst = av_frame_alloc();
             if (av_frame_ref(dst, avFrame) >= 0) {
@@ -315,11 +337,6 @@ void VideoPlayer::startReadFrame() {
             l.unlock();
         }
     }
-    std::unique_lock l(m);
-    clearBufferQueue();
-    l.unlock();
-    audioConsumeVar->notify_one();
-    videoConsumeVar->notify_one();
     VIDEO_LOG_I("the read thread is done.");
 }
 
@@ -358,8 +375,13 @@ void VideoPlayer::seekTo(int64_t timeStamp) {
 }
 
 void VideoPlayer::stop() {
+    playerState = PLAY_STATE_STOPPED;
+    produceVar->notify_one();
+    audioConsumeVar->notify_one();
+    videoConsumeVar->notify_one();
     audioEngine->stop();
     videoEngine->stop();
+    VIDEO_LOG_I("VideoPlayer stop.");
 }
 
 void VideoPlayer::fastForward() {
@@ -386,23 +408,6 @@ int32_t VideoPlayer::getWidth() {
 
 int32_t VideoPlayer::getHeight() {
     return videoHeight;
-}
-
-void VideoPlayer::release() {
-    av_packet_free(&avPacket);
-    av_frame_free(&avFrame);
-    swr_free(&swrContext);
-    sws_freeContext(swsContext);
-    avcodec_close(audioCodecContext);
-    avcodec_close(videoCodecContext);
-    avformat_close_input(&avFormatContext);
-
-    delete[] audioBuffer;
-    delete[] videoBuffer;
-
-    delete videoTimeBase;
-    delete audioTimeBase;
-    VIDEO_LOG_I("releaseResources all the resources.");
 }
 
 int64_t VideoPlayer::getCurrentPlayTime() {
@@ -438,6 +443,9 @@ VideoPlayerAudioEngine::~VideoPlayerAudioEngine(){
 }
 
 void VideoPlayerAudioEngine::playerQueueCallBack(SLAndroidSimpleBufferQueueItf slBufferQueueItf,void *context) {
+    if(NULL == context){
+        return;
+    }
     VideoPlayerAudioEngine* engine=(VideoPlayerAudioEngine*) context;
     VIDEO_LOG_I("playerQueueCallBack");
     auto& videoPlayer= *engine->videoPlayer;
@@ -456,6 +464,7 @@ void VideoPlayerAudioEngine::playerQueueCallBack(SLAndroidSimpleBufferQueueItf s
         audioConsumeVar.wait(l);
     }
     if(videoPlayer.playerState == PLAY_STATE_STOPPED){
+        VIDEO_LOG_I("audio engine stopped");
         return;
     }
     frame = audioQueue.front();
@@ -579,16 +588,14 @@ void VideoPlayerVideoEngine::run() {
     auto& videoTimeBase=*videoPlayer->videoTimeBase;
     auto& videoBuffer = videoPlayer->videoBuffer;
 
-    while(playerState == PLAY_STATE_PLAYING||playerState==PLAY_STATE_PAUSED){
+    while(playerState != PLAY_STATE_STOPPED){
         std::unique_lock l(mutex);
-        if(videoQueue.empty()){
+        if(playerState == PLAY_STATE_PAUSED||videoQueue.empty()){
             videoConsumeVar.wait(l);
         }
         if(playerState == PLAY_STATE_STOPPED){
+            VIDEO_LOG_I("video engine stopped.");
             break;
-        }
-        if(playerState == PLAY_STATE_PAUSED){
-            videoConsumeVar.wait(l);
         }
         frame = videoQueue.front();
         videoQueue.pop_front();
@@ -603,12 +610,18 @@ void VideoPlayerVideoEngine::run() {
         if(AV_SYNC_THRESHOLD > abs(deltaMilliseconds)){
             if(0 < deltaMilliseconds){
                 VIDEO_LOG_I("renderSurface wait:%lld",deltaMilliseconds);
-                std::this_thread::sleep_for(std::chrono::milliseconds (deltaMilliseconds));
+                std::unique_lock l(mutex);
+                videoConsumeVar.wait_for(l,std::chrono::milliseconds (deltaMilliseconds));
+                l.unlock();
             }
         } else {
             //skip
             VIDEO_LOG_I("renderSurface skip:%lld",deltaMilliseconds);
             continue;
+        }
+        if(playerState == PLAY_STATE_STOPPED){
+            VIDEO_LOG_I("video engine stopped.");
+            break;
         }
         ANativeWindow_Buffer window_buffer;
         if (ANativeWindow_lock(nativeWindow, &window_buffer, 0)) {
@@ -648,7 +661,7 @@ void VideoPlayerVideoEngine::resume() {
 }
 
 void VideoPlayerVideoEngine::stop() {
-//    nativeWindow = NULL;
-//    playerState = PLAY_STATE_STOPPED;
+    nativeWindow = NULL;
+    playerState = PLAY_STATE_STOPPED;
 }
 

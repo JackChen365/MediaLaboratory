@@ -118,7 +118,7 @@ public:
 
     void prepareSurface(JNIEnv *env,jobject surface);
 
-    void surfaceDestroy();
+    void destroySurface();
 
     /**
      * Initial the data source.
@@ -157,10 +157,6 @@ public:
      * @return
      */
     int64_t getCurrentPlayTime();
-    /**
-     * Release all the resources.
-     */
-    void release();
 
     void rewind();
 

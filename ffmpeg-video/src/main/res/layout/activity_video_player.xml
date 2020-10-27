@@ -1,108 +1,121 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools"
+<FrameLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:background="@android:color/black">
+    android:layout_height="match_parent">
 
-    <FrameLayout
-        android:id="@+id/contentFrameLayout"
+    <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="320dp">
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:background="@android:color/black">
 
         <FrameLayout
+            android:id="@+id/contentFrameLayout"
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:layout_gravity="center">
+            android:layout_height="320dp">
 
-            <com.cz.android.media.ffmpeg.video.player.PlayerSurfaceView
-                android:id="@+id/surfaceView"
+            <FrameLayout
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:layout_gravity="center_horizontal" />
+                android:layout_gravity="center">
+
+                <com.cz.android.media.ffmpeg.video.player.PlayerSurfaceView
+                    android:id="@+id/surfaceView"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:layout_gravity="center_horizontal" />
+            </FrameLayout>
         </FrameLayout>
-    </FrameLayout>
 
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:layout_gravity="bottom"
-        android:paddingTop="12dp"
-        android:paddingBottom="12dp">
-
-        <TextView
-            android:id="@+id/progressText"
-            android:layout_width="wrap_content"
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:padding="12dp"
-            android:textSize="16sp"
-            android:text="00:00"
-            android:textColor="@android:color/white"/>
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_gravity="bottom"
+            android:paddingTop="12dp"
+            android:paddingBottom="12dp">
 
-        <SeekBar
-            android:id="@+id/seekBar"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"/>
+            <TextView
+                android:id="@+id/progressText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:padding="12dp"
+                android:textSize="16sp"
+                android:text="00:00"
+                android:textColor="@android:color/white"/>
 
-        <TextView
-            android:id="@+id/durationText"
-            android:layout_width="wrap_content"
+            <SeekBar
+                android:id="@+id/seekBar"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"/>
+
+            <TextView
+                android:id="@+id/durationText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:padding="12dp"
+                android:textSize="16sp"
+                android:text="00:00"
+                android:textColor="@android:color/white" />
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:padding="12dp"
-            android:textSize="16sp"
-            android:text="00:00"
-            android:textColor="@android:color/white" />
+            android:orientation="horizontal"
+            android:gravity="center_horizontal">
+
+            <ImageView
+                android:id="@+id/rewindButton"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:padding="12dp"
+                android:layout_marginRight="48dp"
+                android:src="@mipmap/ic_skip_previous_white"
+                android:background="@drawable/player_button_selector"/>
+
+            <ImageView
+                android:id="@+id/playButton"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:padding="12dp"
+                android:src="@mipmap/ic_play_arrow_white"
+                android:background="@drawable/player_button_selector"/>
+
+
+            <ImageView
+                android:id="@+id/pauseButton"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:padding="12dp"
+                android:visibility="gone"
+                android:src="@mipmap/ic_stop_white"
+                android:background="@drawable/player_button_selector"/>
+
+
+            <ImageView
+                android:id="@+id/fastForwardButton"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:padding="12dp"
+                android:layout_marginLeft="48dp"
+                android:src="@mipmap/ic_skip_next_white"
+                android:background="@drawable/player_button_selector"/>
+
+
+        </LinearLayout>
 
     </LinearLayout>
 
-    <LinearLayout
-        android:layout_width="match_parent"
+    <Button
+        android:id="@+id/testButton"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_horizontal">
-
-        <ImageView
-            android:id="@+id/rewindButton"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:padding="12dp"
-            android:layout_marginRight="48dp"
-            android:src="@mipmap/ic_skip_previous_white"
-            android:background="@drawable/player_button_selector"/>
-
-        <ImageView
-            android:id="@+id/playButton"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:padding="12dp"
-            android:src="@mipmap/ic_play_arrow_white"
-            android:background="@drawable/player_button_selector"/>
-
-
-        <ImageView
-            android:id="@+id/pauseButton"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:padding="12dp"
-            android:visibility="gone"
-            android:src="@mipmap/ic_stop_white"
-            android:background="@drawable/player_button_selector"/>
-
-
-        <ImageView
-            android:id="@+id/fastForwardButton"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:padding="12dp"
-            android:layout_marginLeft="48dp"
-            android:src="@mipmap/ic_skip_next_white"
-            android:background="@drawable/player_button_selector"/>
-
-
-    </LinearLayout>
-
-</LinearLayout>
+        android:textAllCaps="false"
+        android:text="test"
+        android:layout_gravity="right|bottom"/>
+</FrameLayout>

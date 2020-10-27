@@ -41,7 +41,7 @@ public class VideoPlayer {
 
     private native void nPrepareWindow(long ref,Surface surface);
 
-    private native void nSurfaceDestroy(long ref);
+    private native void nDestroySurface(long ref);
 
     /**
      * Start play the audio.
@@ -107,9 +107,9 @@ public class VideoPlayer {
         nPrepareWindow(objectRef,surface);
     }
 
-    public void surfaceDestroy(){
+    public void destroySurface(){
         assetObject();
-        nSurfaceDestroy(objectRef);
+        nDestroySurface(objectRef);
     }
 
     /**
@@ -180,7 +180,10 @@ public class VideoPlayer {
     }
 
     public void release(){
-        nRelease(objectRef);
+        if(objectRef != INVALID_REF){
+            nRelease(objectRef);
+            objectRef = INVALID_REF;
+        }
     }
 
     private void assetObject(){
